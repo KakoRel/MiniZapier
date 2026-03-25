@@ -48,12 +48,19 @@ jobs:
             set -e
             cd ${{ secrets.DEPLOY_PATH }}
             docker login ghcr.io -u "${{ github.actor }}" -p "${{ secrets.GITHUB_TOKEN }}"
-            # На Ubuntu может быть либо плагин `docker compose`, либо бинарник `docker-compose`.
-            if docker-compose version >/dev/null 2>&1; then
-              docker-compose -f docker-compose.prod.yml pull
-              docker-compose -f docker-compose.prod.yml up -d
-            else
+            # Сначала Docker Compose v2 (плагин). Старый docker-compose 1.29.x с новым Engine
+            # часто падает с KeyError: ContainerConfig при recreate.
+            if docker compose version >/dev/null 2>&1; then
               docker compose -f docker-compose.prod.yml pull
               docker compose -f docker-compose.prod.yml up -d
+            elif docker-compose version >/dev/null 2>&1; then
+              docker-compose -f docker-compose.prod.yml pull
+              # docker-compose v1.29 + новый Docker: баг KeyError ContainerConfig при recreate.
+              # down + up создаёт контейнеры заново без проблемного пути recreate.
+              docker-compose -f docker-compose.prod.yml down --remove-orphans || true
+              docker-compose -f docker-compose.prod.yml up -d
+            else
+              echo "Нужен docker compose (v2): sudo apt-get install -y docker-compose-plugin" >&2
+              exit 1
             fi
 

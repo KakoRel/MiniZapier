@@ -70,6 +70,14 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 После запуска приложение будет доступно по хостовому порту `8001` (контейнерный `8000`).
 
+На Ubuntu для деплоя нужен **Docker Compose v2** (команда `docker compose`, пакет `docker-compose-plugin`). Старый `docker-compose` 1.29.x с новым Docker Engine при `up --force-recreate` может падать с `KeyError: 'ContainerConfig'`.
+
+```bash
+sudo apt-get update
+sudo apt-get install -y docker-compose-plugin
+docker compose version
+```
+
 Задай переменные окружения на сервере (секреты не должны попасть в образ). GitHub Actions deploy ожидает secrets репозитория: `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `DEPLOY_PATH` (путь на сервере можно указывать среди secrets; лучше использовать отдельный deploy key с минимальными правами).
 
 ## Чеклист безопасности перед пушем
