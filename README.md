@@ -68,6 +68,8 @@ cd frontend && npm run dev
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
+После запуска приложение будет доступно по хостовому порту `8001` (контейнерный `8000`).
+
 Задай переменные окружения на сервере (секреты не должны попасть в образ). GitHub Actions deploy ожидает secrets репозитория: `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `DEPLOY_PATH` (путь на сервере можно указывать среди secrets; лучше использовать отдельный deploy key с минимальными правами).
 
 ## Чеклист безопасности перед пушем
