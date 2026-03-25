@@ -1,0 +1,26 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.sqlite3
+.env
+.env.*
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Django
+staticfiles/
+media/
+
+# Frontend (Vite)
+frontend/node_modules/
+frontend/dist/
+backend/static/workflow_editor/
+
+# OS/IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

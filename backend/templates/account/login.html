@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Вход{% endblock %}
+
+{% block content %}
+  <div class="auth-card">
+    <h1 class="page-title">Вход</h1>
+    <p class="lead">Электронная почта и пароль.</p>
+
+    <form method="post" action="{% url 'account_login' %}" class="form-stack">
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+        <ul class="form-errorlist">
+          {% for err in form.non_field_errors %}<li>{{ err }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+      {% for field in form %}
+        <div class="form-field {% if field.name == 'remember' %}checkbox-field{% endif %}">
+          {% if field.name != 'remember' %}
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {% endif %}
+          {{ field.errors }}
+          {{ field }}
+          {% if field.name == 'remember' %}
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {% endif %}
+        </div>
+      {% endfor %}
+      {% if redirect_field_value %}
+        <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}" />
+      {% endif %}
+      <div class="form-actions">
+        <button type="submit" class="btn btn--primary">Войти</button>
+      </div>
+    </form>
+
+    <div class="auth-links">
+      <p><a href="{% url 'account_reset_password' %}">Забыли пароль?</a></p>
+      <p>Нет аккаунта? <a href="{% url 'account_signup' %}">Регистрация</a></p>
+    </div>
+  </div>
+{% endblock %}

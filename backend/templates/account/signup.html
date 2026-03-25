@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Регистрация{% endblock %}
+
+{% block content %}
+  <div class="auth-card">
+    <h1 class="page-title">Регистрация</h1>
+    <p class="lead">Email, пароль и подтверждение пароля.</p>
+
+    <form method="post" action="{% url 'account_signup' %}" class="form-stack">
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+        <ul class="form-errorlist">
+          {% for err in form.non_field_errors %}<li>{{ err }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+      {% for field in form %}
+        <div class="form-field">
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field.errors }}
+          {{ field }}
+          {% if field.help_text %}<span class="helptext">{{ field.help_text|safe }}</span>{% endif %}
+        </div>
+      {% endfor %}
+      {% if redirect_field_value %}
+        <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}" />
+      {% endif %}
+      <div class="form-actions">
+        <button type="submit" class="btn btn--primary">Зарегистрироваться</button>
+      </div>
+    </form>
+
+    <div class="auth-links">
+      <p>Уже есть аккаунт? <a href="{% url 'account_login' %}">Войти</a></p>
+    </div>
+  </div>
+{% endblock %}

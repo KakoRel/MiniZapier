@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Редактор: {{ workflow.name }}{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'workflow_editor/assets/index.css' %}" />
+{% endblock %}
+
+{% block content %}
+  <p class="page-back"><a href="{% url 'workflow_list' %}">← К списку сценариев</a></p>
+  <h1 class="page-title">{{ workflow.name }}</h1>
+  <p class="lead">Перетаскивайте узлы и соединяйте их. Не забудьте сохранить.</p>
+
+  {% csrf_token %}
+  {{ editor_payload|json_script:"workflow-editor-data" }}
+
+  <div class="editor-mount" id="workflow-editor-root"></div>
+  <script type="module" src="{% static 'workflow_editor/assets/index.js' %}"></script>
+{% endblock %}

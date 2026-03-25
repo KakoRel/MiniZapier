@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Сценарии{% endblock %}
+
+{% block content %}
+  <h1 class="page-title">Сценарии</h1>
+  <p class="lead">Визуальные цепочки автоматизации.</p>
+
+  <div class="toolbar-row">
+    <a class="btn btn--primary" href="{% url 'workflow_create' %}">+ Новый сценарий</a>
+  </div>
+
+  {% if workflows %}
+    <ul class="workflow-list">
+      {% for w in workflows %}
+        <li>
+          <a href="{% url 'workflow_edit' w.pk %}">{{ w.name }}</a>
+          {% if w.is_active %}
+            <span class="badge badge--on">активен</span>
+          {% else %}
+            <span class="badge badge--off">выкл</span>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="lead">Пока нет сценариев. <a href="{% url 'workflow_create' %}">Создать первый</a></p>
+  {% endif %}
+{% endblock %}
