@@ -1,18 +1,16 @@
 # MiniZapier
 
-**English:** Self-hosted workflow automation (like a mini Zapier): visual editor (Vue Flow), Django backend, Celery + Redis, PostgreSQL.
+Платформа для визуальных сценариев автоматизации (похожа на mini Zapier): редактор на **Vue 3 + Vite + Vue Flow**, API на **Django**, очереди **Celery + Redis**, БД **PostgreSQL**.
 
-**Русский:** Платформа для визуальных сценариев автоматизации: редактор на **Vue 3 + Vite + Vue Flow**, API на **Django**, очереди **Celery + Redis**, БД **PostgreSQL**.
+## Требования
 
-## Requirements
+- Python 3.12+ (локально используется 3.14; в проде можно закрепить версию)
+- Node.js 20+ (для сборки `frontend`)
+- Docker Desktop (для локальной разработки: Postgres + Redis)
 
-- Python 3.12+ (project uses 3.14 locally; pin in production if needed)
-- Node.js 20+ (for `frontend` build)
-- Docker Desktop (Postgres + Redis for local dev on Windows)
+## Быстрый старт (локально)
 
-## Quick start (local)
-
-1. **Clone** the repo. **Do not commit secrets** — copy env from example only on your machine:
+1. Склонируй репозиторий. **Не коммить секреты** — копируй env только у себя:
 
    ```bash
    cp .env.example .env
@@ -20,15 +18,15 @@
 
    Edit `.env`: `DJANGO_SECRET_KEY`, database URL, etc.
 
-2. **Start** Postgres and Redis:
+2. Подними Postgres и Redis:
 
    ```bash
    docker compose up -d
    ```
 
-   Postgres is mapped to host port **5433** (avoids conflict with a local PostgreSQL on 5432). Match `POSTGRES_PORT` in `.env`.
+Postgres прокинут на хостовый порт **5433** (чтобы не конфликтовать с локальным PostgreSQL на **5432**). Проверь `POSTGRES_PORT` в `.env`.
 
-3. **Build** the workflow editor (output goes to `backend/static/workflow_editor/`, ignored by git):
+3. Собери редактор (результат попадает в `backend/static/workflow_editor/` и игнорируется git):
 
    ```bash
    cd frontend
@@ -36,7 +34,7 @@
    npm run build
    ```
 
-4. **Migrate** and run:
+4. Прогони миграции и запусти проект:
 
    ```bash
    cd backend
@@ -47,35 +45,38 @@
    ../.venv/bin/python manage.py runserver
    ```
 
-   On Windows PowerShell, use `..\.venv\Scripts\python` instead of `../.venv/bin/python`.
+В Windows PowerShell используй `..\.venv\Scripts\python` вместо `../.venv/bin/python`.
 
-5. Open: `/` (home), `/workflows/` (after login), `/accounts/signup/`.
+5. Открой:
+- `/` — главная
+- `/workflows/` — список сценариев (после входа)
+- `/accounts/signup/` — регистрация
 
-`MAIL_ENABLED=0` in `.env` disables email and email verification (dev-friendly). Set `MAIL_ENABLED=1` and `EMAIL_*` for production mail.
+`MAIL_ENABLED=0` в `.env` отключает почту и подтверждение email (удобно для разработки). Для реальной почты включи `MAIL_ENABLED=1` и заполни `EMAIL_*`.
 
-## Frontend dev (optional)
+## Разработка фронтенда (опционально)
 
 ```bash
 cd frontend && npm run dev
 ```
 
-For full save/load with Django, prefer `npm run build` and use the editor inside Django.
+Для полного save/load с Django удобнее собирать (`npm run build`) и пользоваться редактором внутри Django.
 
-## Production
+## Прод (docker compose)
 
 ```bash
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-Configure environment on the server (no secrets in the image). GitHub Actions deploy expects repository secrets: `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `DEPLOY_PATH` (non-secret path is OK in secrets; use a dedicated deploy key with minimal permissions).
+Задай переменные окружения на сервере (секреты не должны попасть в образ). GitHub Actions deploy ожидает secrets репозитория: `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `DEPLOY_PATH` (путь на сервере можно указывать среди secrets; лучше использовать отдельный deploy key с минимальными правами).
 
-## Security checklist before pushing
+## Чеклист безопасности перед пушем
 
-- Never commit `.env` (it is listed in `.gitignore`).
-- Do not commit real `DJANGO_SECRET_KEY`, DB passwords, SMTP passwords, or API keys.
-- Use `.env.example` only with placeholders.
-- After `git status`, confirm `.env` is **not** listed; if it was ever committed, rotate keys and remove it from history (`git filter-repo` or BFG).
+- Не коммить `.env` (он добавлен в `.gitignore`).
+- Не коммить реальные `DJANGO_SECRET_KEY`, пароли к БД, пароли SMTP и любые API-ключи.
+- Используй `.env.example` только с заглушками.
+- Перед коммитом проверь `git status`: `.env` **не должен** быть в списке. Если секреты всё-таки попали в историю — ключи нужно перевыпустить и очистить историю (`git filter-repo` или BFG).
 
-## License
+## Лицензия
 
-(Add your license if applicable.)
+Добавь лицензию, если это нужно.
