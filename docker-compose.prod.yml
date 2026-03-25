@@ -20,6 +20,11 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      # Внутри Docker-сети БД и Redis доступны по именам сервисов.
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       - db
       - redis
@@ -34,6 +39,10 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       - db
       - redis
@@ -44,6 +53,10 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       - db
       - redis
