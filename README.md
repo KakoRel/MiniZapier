@@ -70,6 +70,11 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 После запуска приложение будет доступно по хостовому порту `8001` (контейнерный `8000`).
 
+В `.env` на сервере укажи хосты и (для входа по формам) доверенные origin:
+
+- `DJANGO_ALLOWED_HOSTS` — IP или домен **без порта**, через запятую, например `5.42.100.168,localhost`. Без этого Django ответит `DisallowedHost`.
+- `DJANGO_CSRF_TRUSTED_ORIGINS` — полные URL с схемой и портом, например `http://5.42.100.168:8001` (иначе возможны ошибки CSRF при POST).
+
 На Ubuntu для деплоя нужен **Docker Compose v2** (команда `docker compose`, пакет `docker-compose-plugin`). Старый `docker-compose` 1.29.x с новым Docker Engine при `up --force-recreate` может падать с `KeyError: 'ContainerConfig'`.
 
 ```bash
