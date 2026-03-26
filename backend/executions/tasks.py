@@ -109,6 +109,12 @@ def _split_emails(raw: str) -> list[str]:
     return [p for p in parts if p]
 
 
+def _safe_json_dumps(value: object) -> str:
+    # Django JSONField can serialize datetimes, but we also do our own json.dumps
+    # when injecting {payload} into templates. Ensure JSON always succeeds.
+    return json.dumps(value, ensure_ascii=False, default=str)
+
+
 def _run_sql_action(dsn: str, query: str, max_rows: int = 100, timeout_sec: int = 20) -> dict:
     if not dsn:
         raise ValueError("SQL action requires DSN (profile postgres_dsn or config.dsn_override)")
@@ -172,14 +178,14 @@ def run_workflow_execution(self, workflow_id: int, trigger_payload: dict | None 
                         token = (getattr(profile, "telegram_bot_token", "") or "").strip()
                         chat_id = (cfg.get("chat_id") or getattr(profile, "telegram_default_chat_id", "") or "").strip()
                         text_tmpl = str(cfg.get("text") or "")
-                        text = text_tmpl.replace("{payload}", json.dumps(step_input, ensure_ascii=False))
+                        text = text_tmpl.replace("{payload}", _safe_json_dumps(step_input))
                         step_output = _run_telegram_action(token=token, chat_id=chat_id, text=text)
                     elif kind == "email":
                         cfg = data.get("config") or {}
                         to_raw = str(cfg.get("to") or "").strip()
                         subject_tmpl = str(cfg.get("subject") or "")
                         body_tmpl = str(cfg.get("body") or "")
-                        payload_str = json.dumps(step_input, ensure_ascii=False)
+                        payload_str = _safe_json_dumps(step_input)
                         subject = subject_tmpl.replace("{payload}", payload_str)
                         body = body_tmpl.replace("{payload}", payload_str)
                         to_list = _split_emails(to_raw)
@@ -199,7 +205,7 @@ def run_workflow_execution(self, workflow_id: int, trigger_payload: dict | None 
                         profile = getattr(workflow.user, "profile", None)
                         dsn = (cfg.get("dsn_override") or getattr(profile, "postgres_dsn", "") or "").strip()
                         query_tmpl = str(cfg.get("query") or "")
-                        query = query_tmpl.replace("{payload}", json.dumps(step_input, ensure_ascii=False))
+                        query = query_tmpl.replace("{payload}", _safe_json_dumps(step_input))
                         max_rows = int(cfg.get("max_rows") or 100)
                         step_output = _run_sql_action(dsn=dsn, query=query, max_rows=max_rows)
                     else:
