@@ -115,6 +115,12 @@ def _safe_json_dumps(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, default=str)
 
 
+def _to_json_serializable(value: object) -> object:
+    # Make arbitrary structures JSON-serializable for Django JSONField.
+    # This converts datetime/Decimal/etc. via default=str.
+    return json.loads(_safe_json_dumps(value))
+
+
 def _run_sql_action(dsn: str, query: str, max_rows: int = 100, timeout_sec: int = 20) -> dict:
     if not dsn:
         raise ValueError("SQL action requires DSN (profile postgres_dsn or config.dsn_override)")
@@ -136,7 +142,8 @@ def _run_sql_action(dsn: str, query: str, max_rows: int = 100, timeout_sec: int 
             cur.execute(normalized)
             col_names = [d.name for d in cur.description] if cur.description else []
             rows = cur.fetchmany(row_limit) if col_names else []
-    return {"columns": col_names, "rows": rows, "row_count": len(rows), "truncated": len(rows) >= row_limit}
+    result = {"columns": col_names, "rows": rows, "row_count": len(rows), "truncated": len(rows) >= row_limit}
+    return _to_json_serializable(result)
 
 
 @shared_task(
