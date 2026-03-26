@@ -4,6 +4,8 @@ import json
 from urllib import error, request
 
 from celery import shared_task
+from django.conf import settings
+from django.core.mail import EmailMessage
 from django.utils import timezone
 
 from workflows.models import Workflow
@@ -98,6 +100,13 @@ def _run_telegram_action(token: str, chat_id: str, text: str, timeout_sec: int =
         raise RuntimeError(f"Telegram HTTP {e.code}: {raw[:1000]}") from e
 
 
+def _split_emails(raw: str) -> list[str]:
+    if not raw:
+        return []
+    parts = [p.strip() for p in raw.replace(";", ",").split(",")]
+    return [p for p in parts if p]
+
+
 @shared_task(
     bind=True,
 )
@@ -139,6 +148,26 @@ def run_workflow_execution(self, workflow_id: int, trigger_payload: dict | None 
                         text_tmpl = str(cfg.get("text") or "")
                         text = text_tmpl.replace("{payload}", json.dumps(step_input, ensure_ascii=False))
                         step_output = _run_telegram_action(token=token, chat_id=chat_id, text=text)
+                    elif kind == "email":
+                        cfg = data.get("config") or {}
+                        to_raw = str(cfg.get("to") or "").strip()
+                        subject_tmpl = str(cfg.get("subject") or "")
+                        body_tmpl = str(cfg.get("body") or "")
+                        payload_str = json.dumps(step_input, ensure_ascii=False)
+                        subject = subject_tmpl.replace("{payload}", payload_str)
+                        body = body_tmpl.replace("{payload}", payload_str)
+                        to_list = _split_emails(to_raw)
+                        if not to_list:
+                            raise ValueError("Email action requires `config.to`")
+
+                        msg = EmailMessage(
+                            subject=subject,
+                            body=body,
+                            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@localhost"),
+                            to=to_list,
+                        )
+                        sent = msg.send(fail_silently=False)
+                        step_output = {"sent": sent, "to": to_list}
                     else:
                         # Default action: passthrough payload for early-stage workflows.
                         step_output = step_input

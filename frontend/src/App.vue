@@ -73,6 +73,7 @@
                 <option value="">passthrough</option>
                 <option value="http">http</option>
                 <option value="telegram">telegram</option>
+                <option value="email">email</option>
               </select>
             </label>
             <label v-if="selectedActionType === 'http'" class="field">
@@ -89,6 +90,21 @@
                 <input v-model.trim="selectedTelegramText" type="text" placeholder="Hello! payload={payload}" />
               </label>
               <p class="hint">Токен и default chat id берутся из Профиля.</p>
+            </template>
+            <template v-if="selectedActionType === 'email'">
+              <label class="field">
+                <span>To</span>
+                <input v-model.trim="selectedEmailTo" type="text" placeholder="user@example.com, other@example.com" />
+              </label>
+              <label class="field">
+                <span>Subject</span>
+                <input v-model.trim="selectedEmailSubject" type="text" placeholder="MiniZapier notification" />
+              </label>
+              <label class="field">
+                <span>Body</span>
+                <input v-model.trim="selectedEmailBody" type="text" placeholder="payload={payload}" />
+              </label>
+              <p class="hint">Отправка идёт через SMTP из .env (EMAIL_*). Можно использовать {payload}.</p>
             </template>
           </template>
         </template>
@@ -293,6 +309,57 @@ const selectedTelegramText = computed({
       config: {
         ...(prev.config || {}),
         text: v,
+      },
+    };
+  },
+});
+
+const selectedEmailTo = computed({
+  get() {
+    return selectedNode.value?.data?.config?.to || "";
+  },
+  set(v) {
+    if (!selectedNode.value) return;
+    const prev = selectedNode.value.data || {};
+    selectedNode.value.data = {
+      ...prev,
+      config: {
+        ...(prev.config || {}),
+        to: v,
+      },
+    };
+  },
+});
+
+const selectedEmailSubject = computed({
+  get() {
+    return selectedNode.value?.data?.config?.subject || "";
+  },
+  set(v) {
+    if (!selectedNode.value) return;
+    const prev = selectedNode.value.data || {};
+    selectedNode.value.data = {
+      ...prev,
+      config: {
+        ...(prev.config || {}),
+        subject: v,
+      },
+    };
+  },
+});
+
+const selectedEmailBody = computed({
+  get() {
+    return selectedNode.value?.data?.config?.body || "";
+  },
+  set(v) {
+    if (!selectedNode.value) return;
+    const prev = selectedNode.value.data || {};
+    selectedNode.value.data = {
+      ...prev,
+      config: {
+        ...(prev.config || {}),
+        body: v,
       },
     };
   },
