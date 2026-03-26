@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Профиль{% endblock %}
+
+{% block content %}
+  <h1 class="page-title">Профиль</h1>
+  <p class="lead">Ключи интеграций для действий workflow.</p>
+
+  <form method="post" action="{% url 'profile' %}" class="auth-card form-stack" style="max-width: 560px;">
+    {% csrf_token %}
+
+    <div class="form-field">
+      <label for="id_telegram_bot_token">Telegram bot token</label>
+      <input
+        id="id_telegram_bot_token"
+        type="text"
+        name="telegram_bot_token"
+        value="{{ profile.telegram_bot_token }}"
+        autocomplete="off"
+        placeholder="123456:ABC-DEF..."
+      />
+      <small>Нужен для Telegram action (Bot API).</small>
+    </div>
+
+    <div class="form-field">
+      <label for="id_telegram_default_chat_id">Default chat id</label>
+      <input
+        id="id_telegram_default_chat_id"
+        type="text"
+        name="telegram_default_chat_id"
+        value="{{ profile.telegram_default_chat_id }}"
+        autocomplete="off"
+        placeholder="123456789 или -100123..."
+      />
+      <small>Можно переопределять в настройке узла.</small>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn--primary">Сохранить</button>
+    </div>
+  </form>
+{% endblock %}
+

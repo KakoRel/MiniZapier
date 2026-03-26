@@ -11,6 +11,19 @@
   <p class="page-back"><a href="{% url 'workflow_list' %}">← К списку сценариев</a></p>
   <h1 class="page-title">{{ workflow.name }}</h1>
   <p class="lead">Перетаскивайте узлы и соединяйте их. Не забудьте сохранить.</p>
+
+  <form method="post" action="{% url 'workflow_rename' workflow.pk %}" class="toolbar-row" style="margin-bottom: 12px;">
+    {% csrf_token %}
+    <input
+      type="text"
+      name="name"
+      value="{{ workflow.name }}"
+      maxlength="200"
+      style="flex:1; min-width: 240px; padding: 8px 10px; border:1px solid #e2e6ec; border-radius:8px;"
+    />
+    <button type="submit" class="btn btn--ghost btn--sm">Переименовать</button>
+  </form>
+
   {% if editor_payload.triggerType == "webhook" %}
     <p class="lead">
       Webhook URL:

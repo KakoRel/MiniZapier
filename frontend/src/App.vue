@@ -72,12 +72,24 @@
               <select v-model="selectedActionType">
                 <option value="">passthrough</option>
                 <option value="http">http</option>
+                <option value="telegram">telegram</option>
               </select>
             </label>
             <label v-if="selectedActionType === 'http'" class="field">
               <span>HTTP URL</span>
               <input v-model.trim="selectedHttpUrl" type="url" placeholder="https://api.example.com/hook" />
             </label>
+            <template v-if="selectedActionType === 'telegram'">
+              <label class="field">
+                <span>Chat ID (optional)</span>
+                <input v-model.trim="selectedTelegramChatId" type="text" placeholder="-100123... или 12345" />
+              </label>
+              <label class="field">
+                <span>Message</span>
+                <input v-model.trim="selectedTelegramText" type="text" placeholder="Hello! payload={payload}" />
+              </label>
+              <p class="hint">Токен и default chat id берутся из Профиля.</p>
+            </template>
           </template>
         </template>
       </aside>
@@ -247,6 +259,40 @@ const selectedHttpUrl = computed({
       config: {
         ...(prev.config || {}),
         url: v,
+      },
+    };
+  },
+});
+
+const selectedTelegramChatId = computed({
+  get() {
+    return selectedNode.value?.data?.config?.chat_id || "";
+  },
+  set(v) {
+    if (!selectedNode.value) return;
+    const prev = selectedNode.value.data || {};
+    selectedNode.value.data = {
+      ...prev,
+      config: {
+        ...(prev.config || {}),
+        chat_id: v,
+      },
+    };
+  },
+});
+
+const selectedTelegramText = computed({
+  get() {
+    return selectedNode.value?.data?.config?.text || "";
+  },
+  set(v) {
+    if (!selectedNode.value) return;
+    const prev = selectedNode.value.data || {};
+    selectedNode.value.data = {
+      ...prev,
+      config: {
+        ...(prev.config || {}),
+        text: v,
       },
     };
   },

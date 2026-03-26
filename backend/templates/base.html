@@ -16,6 +16,7 @@
           {% if user.is_authenticated %}
             <span class="user-email" title="{{ user.email }}">{{ user.email }}</span>
             <a class="btn btn--ghost btn--sm" href="{% url 'workflow_list' %}">Сценарии</a>
+            <a class="btn btn--ghost btn--sm" href="{% url 'profile' %}">Профиль</a>
             <a class="btn btn--primary btn--sm" href="{% url 'account_logout' %}">Выйти</a>
           {% else %}
             <a class="btn btn--ghost btn--sm" href="{% url 'account_login' %}">Войти</a>

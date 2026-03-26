@@ -77,6 +77,27 @@ def _run_http_action(config: dict, payload: dict, timeout_sec: int = 20) -> dict
         raise RuntimeError(f"HTTP {e.code}: {raw[:1000]}") from e
 
 
+def _run_telegram_action(token: str, chat_id: str, text: str, timeout_sec: int = 20) -> dict:
+    if not token:
+        raise ValueError("Telegram bot token is not configured")
+    if not chat_id:
+        raise ValueError("Telegram chat_id is not configured")
+    if text is None:
+        text = ""
+
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    body = json.dumps({"chat_id": chat_id, "text": text}).encode("utf-8")
+    req = request.Request(url=url, data=body, method="POST", headers={"Content-Type": "application/json"})
+    try:
+        with request.urlopen(req, timeout=timeout_sec) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+            data = json.loads(raw) if raw else {}
+            return {"status_code": resp.getcode(), "response": data}
+    except error.HTTPError as e:
+        raw = e.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Telegram HTTP {e.code}: {raw[:1000]}") from e
+
+
 @shared_task(
     bind=True,
 )
@@ -110,6 +131,14 @@ def run_workflow_execution(self, workflow_id: int, trigger_payload: dict | None 
                 try:
                     if kind == "http":
                         step_output = _run_http_action(data.get("config") or {}, step_input)
+                    elif kind == "telegram":
+                        cfg = data.get("config") or {}
+                        profile = getattr(workflow.user, "profile", None)
+                        token = (getattr(profile, "telegram_bot_token", "") or "").strip()
+                        chat_id = (cfg.get("chat_id") or getattr(profile, "telegram_default_chat_id", "") or "").strip()
+                        text_tmpl = str(cfg.get("text") or "")
+                        text = text_tmpl.replace("{payload}", json.dumps(step_input, ensure_ascii=False))
+                        step_output = _run_telegram_action(token=token, chat_id=chat_id, text=text)
                     else:
                         # Default action: passthrough payload for early-stage workflows.
                         step_output = step_input

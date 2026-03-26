@@ -181,6 +181,28 @@ def workflow_toggle_active(request, pk: int):
     return redirect("workflow_list")
 
 
+@login_required
+@require_http_methods(["POST"])
+def workflow_rename(request, pk: int):
+    wf = get_object_or_404(Workflow, pk=pk, user=request.user)
+    new_name = (request.POST.get("name") or "").strip()
+    if not new_name:
+        return redirect("workflow_edit", pk=wf.pk)
+    wf.name = new_name[:200]
+    wf.save(update_fields=["name", "updated_at"])
+    return redirect("workflow_edit", pk=wf.pk)
+
+
+@login_required
+@require_http_methods(["POST"])
+def workflow_delete(request, pk: int):
+    wf = get_object_or_404(Workflow, pk=pk, user=request.user)
+    # Disable periodic task (if any) before deletion.
+    PeriodicTask.objects.filter(name=f"minizapier-workflow-cron-{wf.pk}").update(enabled=False)
+    wf.delete()
+    return redirect("workflow_list")
+
+
 @require_http_methods(["POST"])
 def workflow_webhook(request, pk: int, token: str):
     wf = get_object_or_404(Workflow, pk=pk)
