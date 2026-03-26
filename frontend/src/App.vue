@@ -20,10 +20,22 @@
           :min-zoom="0.2"
           :max-zoom="2"
           @node-click="onNodeClick"
+          @connect="onConnect"
+          @connect-start="onConnectStart"
+          @connect-end="onConnectEnd"
         >
           <Background pattern-color="#aaa" :gap="16" />
           <Controls />
         </VueFlow>
+        <div
+          v-if="createMenu.visible"
+          class="create-menu"
+          :style="{ left: `${createMenu.x}px`, top: `${createMenu.y}px` }"
+        >
+          <button type="button" class="btn btn--ghost btn--sm" @click="createNodeFromMenu('action')">Action</button>
+          <button type="button" class="btn btn--ghost btn--sm" @click="createNodeFromMenu('trigger')">Trigger</button>
+          <button type="button" class="btn btn--ghost btn--sm" @click="closeCreateMenu">Cancel</button>
+        </div>
       </div>
       <aside class="side">
         <h3>Настройка узла</h3>
@@ -135,7 +147,7 @@
 <script setup>
 import { Background } from "@vue-flow/background";
 import { Controls } from "@vue-flow/controls";
-import { VueFlow } from "@vue-flow/core";
+import { VueFlow, useVueFlow } from "@vue-flow/core";
 import { ref, onMounted, computed } from "vue";
 
 const props = defineProps({
@@ -200,6 +212,9 @@ const edges = ref([]);
 const saving = ref(false);
 const saveMsg = ref("");
 const selectedNodeId = ref("");
+const pendingSourceNodeId = ref("");
+const createMenu = ref({ visible: false, x: 0, y: 0, flowX: 0, flowY: 0 });
+const { project } = useVueFlow();
 
 const selectedNode = computed(() =>
   nodes.value.find((node) => node.id === selectedNodeId.value) || null
@@ -494,6 +509,102 @@ function deleteSelectedNode() {
   selectedNodeId.value = "";
 }
 
+function nextEdgeId(source, target) {
+  const base = `e-${source}-${target}`;
+  const used = new Set(edges.value.map((e) => String(e.id)));
+  if (!used.has(base)) return base;
+  let i = 1;
+  while (used.has(`${base}-${i}`)) i += 1;
+  return `${base}-${i}`;
+}
+
+function onConnect(params) {
+  if (!params?.source || !params?.target) return;
+  const edge = {
+    id: nextEdgeId(params.source, params.target),
+    source: params.source,
+    target: params.target,
+  };
+  edges.value = [...edges.value, edge];
+}
+
+function onConnectStart(evt) {
+  pendingSourceNodeId.value = evt?.nodeId || "";
+}
+
+function onConnectEnd(evt) {
+  const isPane = evt?.target?.classList?.contains("vue-flow__pane");
+  if (!isPane || !pendingSourceNodeId.value) {
+    pendingSourceNodeId.value = "";
+    return;
+  }
+  const host = document.querySelector(".flow-host");
+  if (!host) {
+    pendingSourceNodeId.value = "";
+    return;
+  }
+  const rect = host.getBoundingClientRect();
+  const x = Math.max(8, evt.clientX - rect.left);
+  const y = Math.max(8, evt.clientY - rect.top);
+  const flowPos = project({ x, y });
+  createMenu.value = { visible: true, x, y, flowX: flowPos.x, flowY: flowPos.y };
+}
+
+function closeCreateMenu() {
+  createMenu.value = { visible: false, x: 0, y: 0, flowX: 0, flowY: 0 };
+  pendingSourceNodeId.value = "";
+}
+
+function createNodeFromMenu(kind) {
+  if (!pendingSourceNodeId.value) return closeCreateMenu();
+  const sourceId = pendingSourceNodeId.value;
+  let nodeId = "";
+  let newNode = null;
+  if (kind === "trigger") {
+    nodeId = nextNodeId("trigger");
+    newNode = {
+      id: nodeId,
+      type: "input",
+      position: { x: createMenu.value.flowX, y: createMenu.value.flowY },
+      data: {
+        label: "Триггер (Webhook)",
+        kind: "trigger",
+        triggerType: "webhook",
+        cronConfig: {
+          minute: "*/5",
+          hour: "*",
+          day_of_week: "*",
+          day_of_month: "*",
+          month_of_year: "*",
+        },
+      },
+    };
+  } else {
+    nodeId = nextNodeId("action");
+    newNode = {
+      id: nodeId,
+      position: { x: createMenu.value.flowX, y: createMenu.value.flowY },
+      data: {
+        label: "Действие",
+        kind: "action",
+        actionType: "",
+        config: {},
+      },
+    };
+  }
+  nodes.value = [...nodes.value, newNode];
+  edges.value = [
+    ...edges.value,
+    {
+      id: nextEdgeId(sourceId, nodeId),
+      source: sourceId,
+      target: nodeId,
+    },
+  ];
+  selectedNodeId.value = nodeId;
+  closeCreateMenu();
+}
+
 function onNodeClick(evt) {
   selectedNodeId.value = evt?.node?.id || "";
 }
@@ -603,6 +714,7 @@ onMounted(() => {
 .flow-host {
   flex: 1;
   min-height: 0;
+  position: relative;
 }
 
 .flow {
@@ -640,5 +752,17 @@ onMounted(() => {
 .hint {
   color: #666;
   font-size: 13px;
+}
+
+.create-menu {
+  position: absolute;
+  z-index: 15;
+  display: flex;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 }
 </style>
