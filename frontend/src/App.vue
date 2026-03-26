@@ -2,6 +2,9 @@
   <div class="editor-wrap">
     <div class="toolbar">
       <span class="title">{{ workflowName }}</span>
+      <button type="button" class="btn btn--ghost" @click="addTriggerNode">+ Trigger</button>
+      <button type="button" class="btn btn--ghost" @click="addActionNode">+ Action</button>
+      <button type="button" class="btn btn--ghost" :disabled="!selectedNodeId" @click="deleteSelectedNode">Delete selected</button>
       <button type="button" class="btn" :disabled="saving || !saveUrl" @click="save">
         {{ saving ? "Сохранение…" : "Сохранить" }}
       </button>
@@ -433,6 +436,64 @@ const selectedSqlMaxRows = computed({
   },
 });
 
+function nextNodeId(prefix) {
+  const used = new Set(nodes.value.map((n) => String(n.id)));
+  let i = 1;
+  while (used.has(`${prefix}-${i}`)) i += 1;
+  return `${prefix}-${i}`;
+}
+
+function addTriggerNode() {
+  const id = nextNodeId("trigger");
+  nodes.value = [
+    ...nodes.value,
+    {
+      id,
+      type: "input",
+      position: { x: 120, y: 80 + nodes.value.length * 30 },
+      data: {
+        label: "Триггер (Webhook)",
+        kind: "trigger",
+        triggerType: "webhook",
+        cronConfig: {
+          minute: "*/5",
+          hour: "*",
+          day_of_week: "*",
+          day_of_month: "*",
+          month_of_year: "*",
+        },
+      },
+    },
+  ];
+  selectedNodeId.value = id;
+}
+
+function addActionNode() {
+  const id = nextNodeId("action");
+  nodes.value = [
+    ...nodes.value,
+    {
+      id,
+      position: { x: 320, y: 120 + nodes.value.length * 40 },
+      data: {
+        label: "Действие",
+        kind: "action",
+        actionType: "",
+        config: {},
+      },
+    },
+  ];
+  selectedNodeId.value = id;
+}
+
+function deleteSelectedNode() {
+  if (!selectedNodeId.value) return;
+  const nodeId = selectedNodeId.value;
+  nodes.value = nodes.value.filter((n) => n.id !== nodeId);
+  edges.value = edges.value.filter((e) => e.source !== nodeId && e.target !== nodeId);
+  selectedNodeId.value = "";
+}
+
 function onNodeClick(evt) {
   selectedNodeId.value = evt?.node?.id || "";
 }
@@ -522,6 +583,11 @@ onMounted(() => {
   color: #fff;
   cursor: pointer;
   font-size: 14px;
+}
+
+.btn--ghost {
+  background: #fff;
+  color: #111;
 }
 
 .btn:disabled {
