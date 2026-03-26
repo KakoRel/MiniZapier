@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Execution Log{% endblock %}
+
+{% block content %}
+  <h1 class="page-title">Execution Log</h1>
+  <p class="lead">Запуски ваших workflows (за последние {{ days }} дней).</p>
+
+  <div class="toolbar-row" style="margin-bottom: 16px;">
+    <span class="badge">Success: {{ stats_map.success|default:0 }}</span>
+    <span class="badge">Failed: {{ stats_map.failed|default:0 }}</span>
+    <span class="badge">Running: {{ stats_map.running|default:0 }}</span>
+  </div>
+
+  {% if executions %}
+    <table style="width:100%; border-collapse: collapse;">
+      <thead>
+        <tr>
+          <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e2e6ec;">ID</th>
+          <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e2e6ec;">Workflow</th>
+          <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e2e6ec;">Status</th>
+          <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e2e6ec;">Start</th>
+          <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e2e6ec;">End</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in executions %}
+          <tr>
+            <td style="padding:10px 12px; border-bottom:1px solid #f0f2f5;">
+              <a href="{% url 'execution_detail' e.pk %}">#{{ e.pk }}</a>
+            </td>
+            <td style="padding:10px 12px; border-bottom:1px solid #f0f2f5;">{{ e.workflow.name }}</td>
+            <td style="padding:10px 12px; border-bottom:1px solid #f0f2f5;">{{ e.status }}</td>
+            <td style="padding:10px 12px; border-bottom:1px solid #f0f2f5;">{{ e.start_time }}</td>
+            <td style="padding:10px 12px; border-bottom:1px solid #f0f2f5;">{{ e.end_time|default:"-" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="lead">Пока нет запусков.</p>
+  {% endif %}
+
+  <p class="page-back" style="margin-top: 18px;">
+    <a href="{% url 'workflow_list' %}">← К списку сценариев</a>
+  </p>
+{% endblock %}
+

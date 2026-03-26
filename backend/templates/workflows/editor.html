@@ -11,10 +11,22 @@
   <p class="page-back"><a href="{% url 'workflow_list' %}">← К списку сценариев</a></p>
   <h1 class="page-title">{{ workflow.name }}</h1>
   <p class="lead">Перетаскивайте узлы и соединяйте их. Не забудьте сохранить.</p>
-  <p class="lead">
-    Webhook URL:
-    <code>{{ editor_payload.webhookUrl }}</code>
-  </p>
+  {% if editor_payload.triggerType == "webhook" %}
+    <p class="lead">
+      Webhook URL:
+      <code>{{ editor_payload.webhookUrl }}</code>
+    </p>
+  {% elif editor_payload.triggerType == "cron" %}
+    <p class="lead">
+      Cron schedule:
+      <code>
+        {{ editor_payload.cronConfig.minute }} {{ editor_payload.cronConfig.hour }} {{ editor_payload.cronConfig.day_of_month }}
+        {{ editor_payload.cronConfig.month_of_year }} {{ editor_payload.cronConfig.day_of_week }}
+      </code>
+    </p>
+  {% else %}
+    <p class="lead">Триггер не настроен.</p>
+  {% endif %}
 
   {% csrf_token %}
   {{ editor_payload|json_script:"workflow-editor-data" }}

@@ -79,10 +79,6 @@ def _run_http_action(config: dict, payload: dict, timeout_sec: int = 20) -> dict
 
 @shared_task(
     bind=True,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_kwargs={"max_retries": 3},
-    retry_jitter=True,
 )
 def run_workflow_execution(self, workflow_id: int, trigger_payload: dict | None = None) -> int:
     workflow = Workflow.objects.get(pk=workflow_id, is_active=True)
@@ -105,20 +101,45 @@ def run_workflow_execution(self, workflow_id: int, trigger_payload: dict | None 
             label = data.get("label") or f"step-{idx}"
             kind = (data.get("actionType") or "").strip().lower()
             step_input = context_payload
+            retry_max_attempts = int((data.get("config") or {}).get("retry_max_attempts", 1) or 1)
 
-            if kind == "http":
-                step_output = _run_http_action(data.get("config") or {}, step_input)
-            else:
-                # Default action: passthrough payload for early-stage workflows.
-                step_output = {"passthrough": True, "label": label, "payload": step_input}
+            last_exc: Exception | None = None
+            step_output: dict | None = None
+
+            for attempt in range(1, retry_max_attempts + 1):
+                try:
+                    if kind == "http":
+                        step_output = _run_http_action(data.get("config") or {}, step_input)
+                    else:
+                        # Default action: passthrough payload for early-stage workflows.
+                        step_output = step_input
+                    last_exc = None
+                    break
+                except Exception as exc:  # noqa: BLE001
+                    last_exc = exc
+                    if attempt >= retry_max_attempts:
+                        break
+
+            if last_exc is not None and step_output is None:
+                StepResult.objects.create(
+                    execution=execution,
+                    step_name=label[:200],
+                    input_data=step_input,
+                    output_data={},
+                    error_traceback=str(last_exc),
+                )
+                execution.status = Execution.STATUS_FAILED
+                execution.end_time = timezone.now()
+                execution.save(update_fields=["status", "end_time"])
+                return execution.pk
 
             StepResult.objects.create(
                 execution=execution,
                 step_name=label[:200],
                 input_data=step_input,
-                output_data=step_output,
+                output_data=step_output or {},
             )
-            context_payload = step_output
+            context_payload = step_output or {}
 
         execution.status = Execution.STATUS_SUCCESS
         execution.end_time = timezone.now()

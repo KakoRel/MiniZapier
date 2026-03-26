@@ -30,18 +30,55 @@
             <span>Название</span>
             <input v-model.trim="selectedLabel" type="text" />
           </label>
-          <label class="field">
-            <span>Тип действия</span>
-            <select v-model="selectedActionType">
-              <option value="">passthrough</option>
-              <option value="http">http</option>
-            </select>
-          </label>
-          <label v-if="selectedActionType === 'http'" class="field">
-            <span>HTTP URL</span>
-            <input v-model.trim="selectedHttpUrl" type="url" placeholder="https://api.example.com/hook" />
-          </label>
-          <p class="hint">Для Webhook запуска активируйте сценарий на странице списка.</p>
+          <template v-if="selectedNode?.data?.kind === 'trigger'">
+            <label class="field">
+              <span>Тип триггера</span>
+              <select v-model="selectedTriggerType">
+                <option value="webhook">webhook</option>
+                <option value="cron">cron</option>
+              </select>
+            </label>
+
+            <template v-if="selectedTriggerType === 'cron'">
+              <label class="field">
+                <span>minute</span>
+                <input v-model.trim="cronConfig.minute" type="text" placeholder="*/5" />
+              </label>
+              <label class="field">
+                <span>hour</span>
+                <input v-model.trim="cronConfig.hour" type="text" placeholder="*" />
+              </label>
+              <label class="field">
+                <span>day_of_week</span>
+                <input v-model.trim="cronConfig.day_of_week" type="text" placeholder="*" />
+              </label>
+              <label class="field">
+                <span>day_of_month</span>
+                <input v-model.trim="cronConfig.day_of_month" type="text" placeholder="*" />
+              </label>
+              <label class="field">
+                <span>month_of_year</span>
+                <input v-model.trim="cronConfig.month_of_year" type="text" placeholder="*" />
+              </label>
+              <p class="hint">Cron сработает только когда workflow активен.</p>
+            </template>
+
+            <p v-if="selectedTriggerType === 'webhook'" class="hint">Webhook URL показывается на странице редактора.</p>
+          </template>
+
+          <template v-else>
+            <label class="field">
+              <span>Тип действия</span>
+              <select v-model="selectedActionType">
+                <option value="">passthrough</option>
+                <option value="http">http</option>
+              </select>
+            </label>
+            <label v-if="selectedActionType === 'http'" class="field">
+              <span>HTTP URL</span>
+              <input v-model.trim="selectedHttpUrl" type="url" placeholder="https://api.example.com/hook" />
+            </label>
+          </template>
         </template>
       </aside>
     </div>
@@ -66,7 +103,18 @@ const defaultNodes = () => [
     id: "trigger-1",
     type: "input",
     position: { x: 80, y: 40 },
-    data: { label: "Триггер (Webhook)", kind: "trigger" },
+    data: {
+      label: "Триггер (Webhook)",
+      kind: "trigger",
+      triggerType: "webhook",
+      cronConfig: {
+        minute: "*/5",
+        hour: "*",
+        day_of_week: "*",
+        day_of_month: "*",
+        month_of_year: "*",
+      },
+    },
   },
   {
     id: "action-1",
@@ -132,6 +180,57 @@ const selectedActionType = computed({
     selectedNode.value.data = {
       ...(selectedNode.value.data || {}),
       actionType: v,
+    };
+  },
+});
+
+const selectedTriggerType = computed({
+  get() {
+    return selectedNode.value?.data?.triggerType || "";
+  },
+  set(v) {
+    if (!selectedNode.value) return;
+    selectedNode.value.data = {
+      ...(selectedNode.value.data || {}),
+      triggerType: v,
+    };
+    if (v === "webhook") {
+      selectedNode.value.data.label = "Триггер (Webhook)";
+    }
+    if (v === "cron") {
+      selectedNode.value.data.label = "Триггер (Cron)";
+    }
+  },
+});
+
+const cronConfig = computed({
+  get() {
+    if (!selectedNode.value) {
+      return {
+        minute: "*",
+        hour: "*",
+        day_of_week: "*",
+        day_of_month: "*",
+        month_of_year: "*",
+      };
+    }
+    const d = selectedNode.value.data || {};
+    if (!d.cronConfig) {
+      d.cronConfig = {
+        minute: "*",
+        hour: "*",
+        day_of_week: "*",
+        day_of_month: "*",
+        month_of_year: "*",
+      };
+    }
+    return d.cronConfig;
+  },
+  set(v) {
+    if (!selectedNode.value) return;
+    selectedNode.value.data = {
+      ...(selectedNode.value.data || {}),
+      cronConfig: v,
     };
   },
 });
