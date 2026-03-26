@@ -7,18 +7,43 @@
       </button>
       <span v-if="saveMsg" class="msg">{{ saveMsg }}</span>
     </div>
-    <div class="flow-host">
-      <VueFlow
-        v-model:nodes="nodes"
-        v-model:edges="edges"
-        fit-view-on-init
-        class="flow"
-        :min-zoom="0.2"
-        :max-zoom="2"
-      >
-        <Background pattern-color="#aaa" :gap="16" />
-        <Controls />
-      </VueFlow>
+    <div class="work-area">
+      <div class="flow-host">
+        <VueFlow
+          v-model:nodes="nodes"
+          v-model:edges="edges"
+          fit-view-on-init
+          class="flow"
+          :min-zoom="0.2"
+          :max-zoom="2"
+          @node-click="onNodeClick"
+        >
+          <Background pattern-color="#aaa" :gap="16" />
+          <Controls />
+        </VueFlow>
+      </div>
+      <aside class="side">
+        <h3>Настройка узла</h3>
+        <p v-if="!selectedNodeId" class="hint">Выберите узел на схеме</p>
+        <template v-else>
+          <label class="field">
+            <span>Название</span>
+            <input v-model.trim="selectedLabel" type="text" />
+          </label>
+          <label class="field">
+            <span>Тип действия</span>
+            <select v-model="selectedActionType">
+              <option value="">passthrough</option>
+              <option value="http">http</option>
+            </select>
+          </label>
+          <label v-if="selectedActionType === 'http'" class="field">
+            <span>HTTP URL</span>
+            <input v-model.trim="selectedHttpUrl" type="url" placeholder="https://api.example.com/hook" />
+          </label>
+          <p class="hint">Для Webhook запуска активируйте сценарий на странице списка.</p>
+        </template>
+      </aside>
     </div>
   </div>
 </template>
@@ -27,7 +52,7 @@
 import { Background } from "@vue-flow/background";
 import { Controls } from "@vue-flow/controls";
 import { VueFlow } from "@vue-flow/core";
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 
 const props = defineProps({
   workflowId: { type: Number, required: true },
@@ -41,12 +66,17 @@ const defaultNodes = () => [
     id: "trigger-1",
     type: "input",
     position: { x: 80, y: 40 },
-    data: { label: "Триггер (Webhook)" },
+    data: { label: "Триггер (Webhook)", kind: "trigger" },
   },
   {
     id: "action-1",
     position: { x: 80, y: 160 },
-    data: { label: "Действие (HTTP)" },
+    data: {
+      label: "Действие (HTTP)",
+      kind: "action",
+      actionType: "http",
+      config: { url: "" },
+    },
   },
 ];
 
@@ -74,6 +104,58 @@ const nodes = ref([]);
 const edges = ref([]);
 const saving = ref(false);
 const saveMsg = ref("");
+const selectedNodeId = ref("");
+
+const selectedNode = computed(() =>
+  nodes.value.find((node) => node.id === selectedNodeId.value) || null
+);
+
+const selectedLabel = computed({
+  get() {
+    return selectedNode.value?.data?.label || "";
+  },
+  set(v) {
+    if (!selectedNode.value) return;
+    selectedNode.value.data = {
+      ...(selectedNode.value.data || {}),
+      label: v,
+    };
+  },
+});
+
+const selectedActionType = computed({
+  get() {
+    return selectedNode.value?.data?.actionType || "";
+  },
+  set(v) {
+    if (!selectedNode.value) return;
+    selectedNode.value.data = {
+      ...(selectedNode.value.data || {}),
+      actionType: v,
+    };
+  },
+});
+
+const selectedHttpUrl = computed({
+  get() {
+    return selectedNode.value?.data?.config?.url || "";
+  },
+  set(v) {
+    if (!selectedNode.value) return;
+    const prev = selectedNode.value.data || {};
+    selectedNode.value.data = {
+      ...prev,
+      config: {
+        ...(prev.config || {}),
+        url: v,
+      },
+    };
+  },
+});
+
+function onNodeClick(evt) {
+  selectedNodeId.value = evt?.node?.id || "";
+}
 
 function getCookie(name) {
   const pref = `${name}=`;
@@ -180,5 +262,37 @@ onMounted(() => {
 .flow {
   width: 100%;
   height: 100%;
+}
+
+.work-area {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.side {
+  width: 260px;
+  border-left: 1px solid #eee;
+  background: #fff;
+  padding: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.field input,
+.field select {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 7px 8px;
+}
+
+.hint {
+  color: #666;
+  font-size: 13px;
 }
 </style>

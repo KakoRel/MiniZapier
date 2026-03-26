@@ -11,6 +11,10 @@
   <p class="page-back"><a href="{% url 'workflow_list' %}">← К списку сценариев</a></p>
   <h1 class="page-title">{{ workflow.name }}</h1>
   <p class="lead">Перетаскивайте узлы и соединяйте их. Не забудьте сохранить.</p>
+  <p class="lead">
+    Webhook URL:
+    <code>{{ editor_payload.webhookUrl }}</code>
+  </p>
 
   {% csrf_token %}
   {{ editor_payload|json_script:"workflow-editor-data" }}
