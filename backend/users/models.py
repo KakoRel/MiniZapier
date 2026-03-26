@@ -22,6 +22,7 @@ class UserProfile(models.Model):
 
     telegram_bot_token = models.CharField(max_length=128, blank=True, default="")
     telegram_default_chat_id = models.CharField(max_length=64, blank=True, default="")
+    postgres_dsn = models.CharField(max_length=512, blank=True, default="")
 
     updated_at = models.DateTimeField(auto_now=True)
 

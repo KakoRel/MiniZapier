@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import re
 from urllib import error, request
 
+import psycopg
 from celery import shared_task
 from django.conf import settings
 from django.core.mail import EmailMessage
@@ -107,6 +109,30 @@ def _split_emails(raw: str) -> list[str]:
     return [p for p in parts if p]
 
 
+def _run_sql_action(dsn: str, query: str, max_rows: int = 100, timeout_sec: int = 20) -> dict:
+    if not dsn:
+        raise ValueError("SQL action requires DSN (profile postgres_dsn or config.dsn_override)")
+    if not query:
+        raise ValueError("SQL action requires query")
+
+    normalized = query.strip()
+    # Minimal safety policy for MVP: allow only single SELECT query.
+    if ";" in normalized.rstrip(";"):
+        raise ValueError("Only single SELECT query is allowed")
+    if not re.match(r"^\s*select\b", normalized, flags=re.IGNORECASE):
+        raise ValueError("Only SELECT queries are allowed")
+
+    row_limit = max(1, min(int(max_rows or 100), 1000))
+
+    with psycopg.connect(dsn, connect_timeout=timeout_sec) as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"SET statement_timeout = {int(timeout_sec * 1000)}")
+            cur.execute(normalized)
+            col_names = [d.name for d in cur.description] if cur.description else []
+            rows = cur.fetchmany(row_limit) if col_names else []
+    return {"columns": col_names, "rows": rows, "row_count": len(rows), "truncated": len(rows) >= row_limit}
+
+
 @shared_task(
     bind=True,
 )
@@ -168,6 +194,14 @@ def run_workflow_execution(self, workflow_id: int, trigger_payload: dict | None 
                         )
                         sent = msg.send(fail_silently=False)
                         step_output = {"sent": sent, "to": to_list}
+                    elif kind == "sql":
+                        cfg = data.get("config") or {}
+                        profile = getattr(workflow.user, "profile", None)
+                        dsn = (cfg.get("dsn_override") or getattr(profile, "postgres_dsn", "") or "").strip()
+                        query_tmpl = str(cfg.get("query") or "")
+                        query = query_tmpl.replace("{payload}", json.dumps(step_input, ensure_ascii=False))
+                        max_rows = int(cfg.get("max_rows") or 100)
+                        step_output = _run_sql_action(dsn=dsn, query=query, max_rows=max_rows)
                     else:
                         # Default action: passthrough payload for early-stage workflows.
                         step_output = step_input

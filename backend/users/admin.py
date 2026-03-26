@@ -14,8 +14,8 @@ class EmailSendLogAdmin(admin.ModelAdmin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ("user", "updated_at")
-    search_fields = ("user__email", "telegram_default_chat_id")
+    list_display = ("user", "telegram_default_chat_id", "updated_at")
+    search_fields = ("user__email", "telegram_default_chat_id", "postgres_dsn")
     readonly_fields = ("updated_at",)
 
 # Register your models here.

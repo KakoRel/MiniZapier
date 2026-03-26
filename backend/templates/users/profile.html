@@ -35,6 +35,19 @@
       <small>Можно переопределять в настройке узла.</small>
     </div>
 
+    <div class="form-field">
+      <label for="id_postgres_dsn">Postgres DSN (for SQL action)</label>
+      <input
+        id="id_postgres_dsn"
+        type="text"
+        name="postgres_dsn"
+        value="{{ profile.postgres_dsn }}"
+        autocomplete="off"
+        placeholder="postgresql://user:pass@host:5432/dbname"
+      />
+      <small>Используется SQL action по умолчанию. В узле можно задать свой dsn_override.</small>
+    </div>
+
     <div class="form-actions">
       <button type="submit" class="btn btn--primary">Сохранить</button>
     </div>

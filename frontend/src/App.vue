@@ -74,6 +74,7 @@
                 <option value="http">http</option>
                 <option value="telegram">telegram</option>
                 <option value="email">email</option>
+                <option value="sql">sql</option>
               </select>
             </label>
             <label v-if="selectedActionType === 'http'" class="field">
@@ -105,6 +106,21 @@
                 <input v-model.trim="selectedEmailBody" type="text" placeholder="payload={payload}" />
               </label>
               <p class="hint">Отправка идёт через SMTP из .env (EMAIL_*). Можно использовать {payload}.</p>
+            </template>
+            <template v-if="selectedActionType === 'sql'">
+              <label class="field">
+                <span>DSN override (optional)</span>
+                <input v-model.trim="selectedSqlDsnOverride" type="text" placeholder="postgresql://user:pass@host:5432/db" />
+              </label>
+              <label class="field">
+                <span>Query (SELECT only)</span>
+                <input v-model.trim="selectedSqlQuery" type="text" placeholder="SELECT now() as ts" />
+              </label>
+              <label class="field">
+                <span>Max rows</span>
+                <input v-model.number="selectedSqlMaxRows" type="number" min="1" max="1000" />
+              </label>
+              <p class="hint">По умолчанию DSN берется из Профиля. Разрешены только SELECT-запросы.</p>
             </template>
           </template>
         </template>
@@ -360,6 +376,58 @@ const selectedEmailBody = computed({
       config: {
         ...(prev.config || {}),
         body: v,
+      },
+    };
+  },
+});
+
+const selectedSqlDsnOverride = computed({
+  get() {
+    return selectedNode.value?.data?.config?.dsn_override || "";
+  },
+  set(v) {
+    if (!selectedNode.value) return;
+    const prev = selectedNode.value.data || {};
+    selectedNode.value.data = {
+      ...prev,
+      config: {
+        ...(prev.config || {}),
+        dsn_override: v,
+      },
+    };
+  },
+});
+
+const selectedSqlQuery = computed({
+  get() {
+    return selectedNode.value?.data?.config?.query || "";
+  },
+  set(v) {
+    if (!selectedNode.value) return;
+    const prev = selectedNode.value.data || {};
+    selectedNode.value.data = {
+      ...prev,
+      config: {
+        ...(prev.config || {}),
+        query: v,
+      },
+    };
+  },
+});
+
+const selectedSqlMaxRows = computed({
+  get() {
+    return selectedNode.value?.data?.config?.max_rows || 100;
+  },
+  set(v) {
+    if (!selectedNode.value) return;
+    const prev = selectedNode.value.data || {};
+    const parsed = Number.isFinite(v) ? Number(v) : 100;
+    selectedNode.value.data = {
+      ...prev,
+      config: {
+        ...(prev.config || {}),
+        max_rows: parsed,
       },
     };
   },

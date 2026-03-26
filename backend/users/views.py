@@ -16,7 +16,8 @@ def profile(request):
     if request.method == "POST":
         prof.telegram_bot_token = (request.POST.get("telegram_bot_token") or "").strip()
         prof.telegram_default_chat_id = (request.POST.get("telegram_default_chat_id") or "").strip()
-        prof.save(update_fields=["telegram_bot_token", "telegram_default_chat_id", "updated_at"])
+        prof.postgres_dsn = (request.POST.get("postgres_dsn") or "").strip()
+        prof.save(update_fields=["telegram_bot_token", "telegram_default_chat_id", "postgres_dsn", "updated_at"])
         messages.success(request, "Профиль сохранён")
         return redirect("profile")
 
