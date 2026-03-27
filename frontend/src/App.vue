@@ -136,6 +136,7 @@
               <select v-model="selectedOnErrorPolicy">
                 <option value="stop">stop on error</option>
                 <option value="continue">continue on error</option>
+                <option value="pause">pause (resume later)</option>
               </select>
             </label>
             <label v-if="selectedActionType === 'http'" class="field">
@@ -439,8 +440,10 @@ const selectedHttpUrl = computed({
 
 const selectedOnErrorPolicy = computed({
   get() {
-    const continueOnError = !!selectedNode.value?.data?.config?.continue_on_error;
-    return continueOnError ? "continue" : "stop";
+    const cfg = selectedNode.value?.data?.config || {};
+    if (cfg.pause_on_error) return "pause";
+    if (cfg.continue_on_error) return "continue";
+    return "stop";
   },
   set(v) {
     if (!selectedNode.value) return;
@@ -450,6 +453,7 @@ const selectedOnErrorPolicy = computed({
       config: {
         ...(prev.config || {}),
         continue_on_error: v === "continue",
+        pause_on_error: v === "pause",
       },
     };
   },
@@ -980,8 +984,8 @@ onMounted(() => {
 .editor-wrap {
   display: flex;
   flex-direction: column;
-  height: min(70vh, 640px);
-  min-height: 420px;
+  height: min(82vh, 820px);
+  min-height: 520px;
   border: 1px solid #ddd;
   border-radius: 8px;
   overflow: hidden;
@@ -1045,7 +1049,7 @@ onMounted(() => {
 }
 
 .side {
-  width: 260px;
+  width: 320px;
   border-left: 1px solid #eee;
   background: #fff;
   padding: 12px;

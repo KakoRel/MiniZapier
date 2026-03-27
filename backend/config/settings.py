@@ -40,11 +40,14 @@ INSTALLED_APPS = [
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
+    "rest_framework",
+    "drf_spectacular",
     "django_celery_beat",
     # local
     "users.apps.UsersConfig",
     "workflows",
     "executions",
+    "api",
 ]
 
 MIDDLEWARE = [
@@ -156,6 +159,23 @@ EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@localhost")
+
+# DRF / OpenAPI
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "MiniZapier API",
+    "DESCRIPTION": "REST API for workflows and executions.",
+    "VERSION": "1.0.0",
+}
 
 _django_email_backend = env("DJANGO_EMAIL_BACKEND", default="").strip()
 if not MAIL_ENABLED:

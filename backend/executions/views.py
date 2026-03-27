@@ -6,8 +6,11 @@ from django.db.models import Count
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.db.models.functions import TruncDate
+from django.shortcuts import redirect
+from django.views.decorators.http import require_POST
 
 from .models import Execution
+from .tasks import resume_execution
 
 
 @login_required
@@ -120,3 +123,16 @@ def execution_detail(request, execution_id: int):
             "steps": steps,
         },
     )
+
+
+@login_required
+@require_POST
+def execution_resume(request, execution_id: int):
+    execution = get_object_or_404(
+        Execution.objects.select_related("workflow"),
+        pk=execution_id,
+        workflow__user=request.user,
+    )
+    if execution.status == Execution.STATUS_PAUSED:
+        resume_execution.delay(execution.pk)
+    return redirect("execution_detail", execution_id=execution.pk)

@@ -25,6 +25,17 @@
     </div>
   </div>
 
+  {% if execution.status == "paused" %}
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="card-title">Выполнение на паузе</div>
+      <p class="lead" style="margin: 8px 0 0;">Нажмите “Продолжить”, чтобы возобновить выполнение с остановленного шага.</p>
+      <form method="post" action="{% url 'execution_resume' execution.pk %}" style="margin-top: 10px;">
+        {% csrf_token %}
+        <button type="submit" class="btn btn--primary">Продолжить</button>
+      </form>
+    </div>
+  {% endif %}
+
   {% if steps %}
     <div class="card" style="padding: 0;">
       <table class="table">

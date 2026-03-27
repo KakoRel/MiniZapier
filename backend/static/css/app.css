@@ -139,6 +139,15 @@ a:hover {
   margin: 0 auto;
 }
 
+/* Wider layouts for heavy pages */
+body[data-page="workflow_edit"] .content {
+  max-width: 1920px;
+}
+
+body[data-page="analytics"] .content {
+  max-width: 1400px;
+}
+
 @media (max-width: 900px) {
   .layout {
     grid-template-columns: 1fr;
@@ -575,6 +584,12 @@ th, td {
   background: rgba(255, 74, 0, 0.10);
   border-color: rgba(255, 74, 0, 0.22);
   color: var(--accent);
+}
+
+.status-badge--paused {
+  background: rgba(59, 130, 246, 0.10);
+  border-color: rgba(59, 130, 246, 0.22);
+  color: #2563eb;
 }
 
 .badge--on {

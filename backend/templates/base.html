@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="{% static 'css/app.css' %}?v={{ STATIC_VERSION }}" />
     {% block extra_css %}{% endblock %}
   </head>
-  <body>
+  <body data-page="{{ request.resolver_match.url_name|default:'' }}">
     <div class="layout">
       <aside class="sidebar">
         <div class="sidebar-brand">
@@ -16,26 +16,26 @@
         </div>
         <nav class="sidebar-nav">
           {% if user.is_authenticated %}
-            {% with request.path as p %}
-            <a class="nav-item {% if p|slice:':11' == '/workflows/' %}nav-item--active{% endif %}" href="{% url 'workflow_list' %}">
+            {% with request.resolver_match.url_name as rn %}
+            <a class="nav-item {% if rn == 'workflow_list' or rn == 'workflow_create' or rn == 'workflow_edit' %}nav-item--active{% endif %}" href="{% url 'workflow_list' %}">
               <span class="nav-ico" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none"><path d="M7 7h10M7 12h10M7 17h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
               </span>
               <span>Сценарии</span>
             </a>
-            <a class="nav-item {% if p|slice:':12' == '/executions/' and not p|slice:'-10:' == '/analytics/' %}nav-item--active{% endif %}" href="{% url 'executions_list' %}">
+            <a class="nav-item {% if rn == 'executions_list' or rn == 'execution_detail' %}nav-item--active{% endif %}" href="{% url 'executions_list' %}">
               <span class="nav-ico" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none"><path d="M8 7h8M8 12h8M8 17h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="2"/></svg>
               </span>
               <span>Журнал запусков</span>
             </a>
-            <a class="nav-item {% if p|slice:'-10:' == '/analytics/' %}nav-item--active{% endif %}" href="{% url 'analytics' %}">
+            <a class="nav-item {% if rn == 'analytics' %}nav-item--active{% endif %}" href="{% url 'analytics' %}">
               <span class="nav-ico" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none"><path d="M4 19V5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 19h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M8 16v-5M12 16V8M16 16v-8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
               </span>
               <span>Аналитика</span>
             </a>
-            <a class="nav-item {% if p|slice:':9' == '/profile/' %}nav-item--active{% endif %}" href="{% url 'profile' %}">
+            <a class="nav-item {% if rn == 'profile' or rn == 'send_confirmation_email' %}nav-item--active{% endif %}" href="{% url 'profile' %}">
               <span class="nav-ico" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none"><path d="M20 21a8 8 0 1 0-16 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" stroke="currentColor" stroke-width="2"/></svg>
               </span>

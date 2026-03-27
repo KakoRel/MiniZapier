@@ -469,10 +469,17 @@ def run_workflow_execution(self, workflow_id: int, trigger_payload: dict | None 
     flow_data = workflow.flow_data or {}
     execution_order, node_map, outgoing, incoming = _ordered_execution_nodes(flow_data)
 
-    def _execute_dag_for_payload(one_trigger_payload: dict) -> int:
-        execution = Execution.objects.create(workflow=workflow, status=Execution.STATUS_RUNNING)
-        outputs: dict[str, object] = {}
+    def _execute_dag_for_payload(
+        one_trigger_payload: dict,
+        *,
+        existing_execution: Execution | None = None,
+        start_from_node_id: str | None = None,
+        initial_outputs: dict[str, object] | None = None,
+    ) -> int:
+        execution = existing_execution or Execution.objects.create(workflow=workflow, status=Execution.STATUS_RUNNING)
+        outputs: dict[str, object] = dict(initial_outputs or {})
         trigger_payload_local = one_trigger_payload or {}
+        started = start_from_node_id is None
         try:
             if not execution_order:
                 StepResult.objects.create(
@@ -482,6 +489,10 @@ def run_workflow_execution(self, workflow_id: int, trigger_payload: dict | None 
                     output_data={"message": "No action nodes found"},
                 )
             for idx, node_id in enumerate(execution_order, start=1):
+                if not started:
+                    if node_id != start_from_node_id:
+                        continue
+                    started = True
                 node = node_map.get(node_id) or {}
                 data = node.get("data") or {}
                 label = data.get("label") or f"step-{idx}"
@@ -499,6 +510,7 @@ def run_workflow_execution(self, workflow_id: int, trigger_payload: dict | None 
                 step_input = _merge_payloads(pred_items, policy=merge_policy) if pred_items else trigger_payload_local
                 retry_max_attempts = int(cfg.get("retry_max_attempts", 1) or 1)
                 continue_on_error = bool(cfg.get("continue_on_error", False))
+                pause_on_error = bool(cfg.get("pause_on_error", False))
 
                 last_exc: Exception | None = None
                 step_output: dict | None = None
@@ -577,6 +589,24 @@ def run_workflow_execution(self, workflow_id: int, trigger_payload: dict | None 
                         outputs[node_id] = continued_output
                         continue
 
+                    if pause_on_error:
+                        StepResult.objects.create(
+                            execution=execution,
+                            step_name=label[:200],
+                            input_data=step_input,
+                            output_data={},
+                            error_traceback=str(last_exc),
+                        )
+                        execution.status = Execution.STATUS_PAUSED
+                        execution.paused_at = timezone.now()
+                        execution.resume_state = {
+                            "trigger_payload": _to_json_serializable(trigger_payload_local),
+                            "outputs": _to_json_serializable(outputs),
+                            "start_from_node_id": node_id,
+                        }
+                        execution.save(update_fields=["status", "paused_at", "resume_state"])
+                        return execution.pk
+
                     StepResult.objects.create(
                         execution=execution,
                         step_name=label[:200],
@@ -652,3 +682,198 @@ def run_workflow_execution(self, workflow_id: int, trigger_payload: dict | None 
 
     trigger_payload_final = trigger_payload or {}
     return _execute_dag_for_payload(trigger_payload_final)
+
+
+def _orig_run_for_resume(
+    workflow_id: int,
+    *,
+    execution_id: int,
+    trigger_payload: dict,
+    outputs: dict,
+    start_from_node_id: str | None,
+) -> int:
+    workflow = Workflow.objects.get(pk=workflow_id, is_active=True)
+    trigger = getattr(workflow, "trigger", None)
+    variables = _load_user_variables(workflow)
+    flow_data = workflow.flow_data or {}
+    execution_order, node_map, outgoing, incoming = _ordered_execution_nodes(flow_data)
+
+    execution = Execution.objects.get(pk=execution_id, workflow=workflow)
+
+    # Inline a minimal copy of the inner executor by importing from the closure-free code above:
+    # We reconstruct step input and action execution similarly; this avoids storing python closures in celery.
+    started = start_from_node_id is None
+    outputs_map: dict[str, object] = dict(outputs or {})
+
+    for idx, node_id in enumerate(execution_order, start=1):
+        if not started:
+            if node_id != start_from_node_id:
+                continue
+            started = True
+        node = node_map.get(node_id) or {}
+        data = node.get("data") or {}
+        label = data.get("label") or f"step-{idx}"
+        kind = (data.get("actionType") or "").strip().lower()
+        cfg = _interpolate_vars((data.get("config") or {}), variables) or {}
+        predecessors = sorted(incoming.get(node_id, []))
+        pred_items: list[tuple[str, object]] = []
+        for pred_id in predecessors:
+            pred_node = node_map.get(pred_id) or {}
+            if _is_trigger_node(pred_node):
+                pred_items.append((pred_id, trigger_payload))
+            else:
+                pred_items.append((pred_id, outputs_map.get(pred_id)))
+        merge_policy = str(cfg.get("merge_policy") or "auto")
+        step_input = _merge_payloads(pred_items, policy=merge_policy) if pred_items else trigger_payload
+        retry_max_attempts = int(cfg.get("retry_max_attempts", 1) or 1)
+        continue_on_error = bool(cfg.get("continue_on_error", False))
+        pause_on_error = bool(cfg.get("pause_on_error", False))
+
+        last_exc: Exception | None = None
+        step_output: dict | None = None
+
+        for attempt in range(1, retry_max_attempts + 1):
+            try:
+                if kind == "http":
+                    step_output = _run_http_action(cfg, step_input)
+                elif kind == "telegram":
+                    profile = getattr(workflow.user, "profile", None)
+                    token = (
+                        str(cfg.get("bot_token") or "")
+                        or (getattr(profile, "telegram_bot_token", "") or "").strip()
+                    )
+                    token = str(token or "").strip()
+                    chat_id = (cfg.get("chat_id") or getattr(profile, "telegram_default_chat_id", "") or "").strip()
+                    text_tmpl = str(cfg.get("text") or "")
+                    text = text_tmpl.replace("{payload}", _safe_json_dumps(step_input))
+                    step_output = _run_telegram_action(token=token, chat_id=chat_id, text=text)
+                elif kind == "email":
+                    to_raw = str(cfg.get("to") or "").strip()
+                    subject_tmpl = str(cfg.get("subject") or "")
+                    body_tmpl = str(cfg.get("body") or "")
+                    payload_str = _safe_json_dumps(step_input)
+                    subject = subject_tmpl.replace("{payload}", payload_str)
+                    body = body_tmpl.replace("{payload}", payload_str)
+                    to_list = _split_emails(to_raw)
+                    if not to_list:
+                        raise ValueError("Email action requires `config.to`")
+                    msg = EmailMessage(
+                        subject=subject,
+                        body=body,
+                        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@localhost"),
+                        to=to_list,
+                    )
+                    sent = msg.send(fail_silently=False)
+                    step_output = {"sent": sent, "to": to_list}
+                elif kind == "sql":
+                    profile = getattr(workflow.user, "profile", None)
+                    dsn = (
+                        str(cfg.get("dsn_override") or "")
+                        or (getattr(profile, "postgres_dsn", "") or "").strip()
+                    )
+                    dsn = str(dsn or "").strip()
+                    query_tmpl = str(cfg.get("query") or "")
+                    query = query_tmpl.replace("{payload}", _safe_json_dumps(step_input))
+                    max_rows = int(cfg.get("max_rows") or 100)
+                    step_output = _run_sql_action(dsn=dsn, query=query, max_rows=max_rows)
+                elif kind == "transform":
+                    step_output = _run_transform_action(cfg, step_input)
+                else:
+                    step_output = step_input
+                last_exc = None
+                break
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                if attempt >= retry_max_attempts:
+                    break
+
+        if last_exc is not None and step_output is None:
+            if continue_on_error:
+                continued_output = {
+                    "continued_on_error": True,
+                    "error": str(last_exc),
+                    "input": _to_json_serializable(step_input),
+                }
+                StepResult.objects.create(
+                    execution=execution,
+                    step_name=label[:200],
+                    input_data=step_input,
+                    output_data=continued_output,
+                    error_traceback=str(last_exc),
+                )
+                outputs_map[node_id] = continued_output
+                continue
+
+            if pause_on_error:
+                StepResult.objects.create(
+                    execution=execution,
+                    step_name=label[:200],
+                    input_data=step_input,
+                    output_data={},
+                    error_traceback=str(last_exc),
+                )
+                execution.status = Execution.STATUS_PAUSED
+                execution.paused_at = timezone.now()
+                execution.resume_state = {
+                    "trigger_payload": _to_json_serializable(trigger_payload),
+                    "outputs": _to_json_serializable(outputs_map),
+                    "start_from_node_id": node_id,
+                }
+                execution.save(update_fields=["status", "paused_at", "resume_state"])
+                return execution.pk
+
+            StepResult.objects.create(
+                execution=execution,
+                step_name=label[:200],
+                input_data=step_input,
+                output_data={},
+                error_traceback=str(last_exc),
+            )
+            execution.status = Execution.STATUS_FAILED
+            execution.end_time = timezone.now()
+            execution.save(update_fields=["status", "end_time"])
+            return execution.pk
+
+        StepResult.objects.create(
+            execution=execution,
+            step_name=label[:200],
+            input_data=step_input,
+            output_data=step_output or {},
+        )
+        outputs_map[node_id] = step_output or {}
+
+    execution.status = Execution.STATUS_SUCCESS
+    execution.end_time = timezone.now()
+    execution.save(update_fields=["status", "end_time"])
+    return execution.pk
+
+
+run_workflow_execution._orig_run_for_resume = _orig_run_for_resume  # type: ignore[attr-defined]
+
+
+@shared_task(bind=True)
+def resume_execution(self, execution_id: int) -> int:
+    execution = Execution.objects.select_related("workflow", "workflow__user").get(pk=execution_id)
+    if execution.status != Execution.STATUS_PAUSED:
+        return execution.pk
+    wf = execution.workflow
+    if not wf.is_active:
+        return execution.pk
+
+    state = execution.resume_state or {}
+    trigger_payload_local = state.get("trigger_payload") or {}
+    outputs = state.get("outputs") or {}
+    start_from_node_id = state.get("start_from_node_id") or None
+
+    execution.status = Execution.STATUS_RUNNING
+    execution.paused_at = None
+    execution.save(update_fields=["status", "paused_at"])
+
+    # Re-run within the same execution record.
+    return run_workflow_execution._orig_run_for_resume(  # type: ignore[attr-defined]
+        wf.pk,
+        execution_id=execution.pk,
+        trigger_payload=trigger_payload_local,
+        outputs=outputs,
+        start_from_node_id=start_from_node_id,
+    )

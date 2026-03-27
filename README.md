@@ -2,6 +2,16 @@
 
 Платформа для визуальных сценариев автоматизации (похожа на mini Zapier): редактор на **Vue 3 + Vite + Vue Flow**, API на **Django**, очереди **Celery + Redis**, БД **PostgreSQL**.
 
+## Возможности (MVP)
+
+- **Визуальный редактор workflow**: узлы/связи (DAG), сохранение схемы, валидация перед сохранением
+- **Триггеры**: Webhook, Cron, Email (IMAP polling)
+- **Действия**: HTTP, Email (SMTP), Telegram, SQL (Postgres, SELECT-only), Transform (без `eval`)
+- **Ошибка/устойчивость**: retry на шаге, stop/continue/pause on error + resume
+- **Мониторинг**: журнал запусков + фильтры, детализация шагов, аналитика (графики)
+- **Переменные/секреты**: хранение ключ→значение и подстановка `{{KEY}}` в настройках узлов
+- **REST API + Swagger**: документация по `/api/docs/`
+
 ## Требования
 
 - Python 3.12+ (локально используется 3.14; в проде можно закрепить версию)
@@ -51,8 +61,47 @@ Postgres прокинут на хостовый порт **5433** (чтобы н
 - `/` — главная
 - `/workflows/` — список сценариев (после входа)
 - `/accounts/signup/` — регистрация
+- `/api/docs/` — Swagger UI (REST API)
 
 `MAIL_ENABLED=0` в `.env` отключает почту и подтверждение email (удобно для разработки). Для реальной почты включи `MAIL_ENABLED=1` и заполни `EMAIL_*`.
+
+## Переменные и секреты (как использовать в сценариях)
+
+В профиле можно хранить **несколько** переменных вида `KEY -> value` и помечать их как `secret`.
+
+В настройках узлов используй подстановку:
+
+- `{{KEY}}` — подставится значение переменной перед выполнением шага.
+
+Примеры:
+
+- Telegram bot token: `{{TG_API_TOKEN}}`
+- SQL DSN override: `{{DB_DSN}}`
+
+Секретные значения:
+- не отображаются в HTML (в интерфейсе),
+- не отдаются через API (в ответе будет пустая строка),
+- не затираются пустым сохранением.
+
+## Merge policy (несколько входов)
+
+Если у узла несколько входящих связей, входные payload объединяются по `merge_policy`:
+
+- `auto`: dict→shallow merge, list→concat, иначе last wins
+- `dict_merge`: shallow merge dict (поздний перекрывает ранний)
+- `last`: last wins
+- `list_concat`: concat lists
+- `namespace`: `{ "<source_id>": payload }`
+
+Порядок входов детерминированный (сортировка по `source node id`).
+
+## Pause/Resume
+
+Если у узла выбран режим **pause on error**, выполнение переводится в статус `paused` и сохраняет `resume_state`.
+
+Возобновить можно:
+- из UI на странице запуска кнопкой **Продолжить**
+- через API: `POST /api/executions/{id}/resume/`
 
 ## Разработка фронтенда (опционально)
 
@@ -84,6 +133,25 @@ docker compose version
 ```
 
 Задай переменные окружения на сервере (секреты не должны попасть в образ). GitHub Actions deploy ожидает secrets репозитория: `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `DEPLOY_PATH` (путь на сервере можно указывать среди secrets; лучше использовать отдельный deploy key с минимальными правами).
+
+### Миграции
+
+Если выкатил новые модели/поля, примени миграции:
+
+```bash
+cd /path/to/deploy
+docker compose -f docker-compose.prod.yml exec web python manage.py migrate
+```
+
+## API
+
+- Swagger UI: `/api/docs/`
+- OpenAPI schema: `/api/schema/`
+
+Основные ресурсы:
+- `/api/workflows/` (CRUD)
+- `/api/executions/` (read-only + resume)
+- `/api/variables/` (CRUD)
 
 ## Чеклист безопасности перед пушем
 
