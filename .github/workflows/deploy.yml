@@ -52,6 +52,7 @@ jobs:
             # часто падает с KeyError: ContainerConfig при recreate.
             if docker compose version >/dev/null 2>&1; then
               docker compose -f docker-compose.prod.yml pull
+              docker compose -f docker-compose.prod.yml down --remove-orphans || true
               docker compose -f docker-compose.prod.yml up -d
             elif docker-compose version >/dev/null 2>&1; then
               docker-compose -f docker-compose.prod.yml pull
@@ -62,5 +63,10 @@ jobs:
             else
               echo "Нужен docker compose (v2): sudo apt-get install -y docker-compose-plugin" >&2
               exit 1
+            fi
+            # Опциональная агрессивная очистка (включать только если понимаете последствия):
+            # создайте secret PRUNE_DOCKER_AFTER_DEPLOY=true
+            if [ "${{ secrets.PRUNE_DOCKER_AFTER_DEPLOY }}" = "true" ]; then
+              docker system prune -a --volumes -f
             fi
 

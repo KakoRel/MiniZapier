@@ -112,6 +112,19 @@ SITE_ID = 1
 SITE_DOMAIN = env("SITE_DOMAIN", default="localhost")
 SITE_NAME = env("SITE_NAME", default="MiniZapier")
 
+if SITE_DOMAIN and SITE_DOMAIN not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(SITE_DOMAIN)
+if "localhost" not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append("localhost")
+if "127.0.0.1" not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append("127.0.0.1")
+https_origin = f"https://{SITE_DOMAIN}"
+http_origin = f"http://{SITE_DOMAIN}"
+if https_origin not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(https_origin)
+if http_origin not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(http_origin)
+
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
     "allauth.account.auth_backends.AuthenticationBackend",
@@ -124,7 +137,9 @@ MAIL_ENABLED = env.bool("MAIL_ENABLED", default=False)
 # Вход и регистрация по email + пароль (без username).
 ACCOUNT_LOGIN_METHODS = {"email"}
 ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
-ACCOUNT_EMAIL_VERIFICATION = "mandatory" if MAIL_ENABLED else "none"
+# Подтверждение email не блокирует регистрацию/вход.
+# Пользователь может подтвердить адрес из раздела "Профиль".
+ACCOUNT_EMAIL_VERIFICATION = "none"
 ACCOUNT_FORMS = {
     "login": "users.forms.EmailPasswordLoginForm",
     "signup": "users.forms.EmailPasswordSignupForm",

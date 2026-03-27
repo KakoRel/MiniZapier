@@ -4,13 +4,31 @@
 
 {% block content %}
   <h1 class="page-title">Профиль</h1>
-  <p class="lead">Ключи интеграций для действий workflow.</p>
+  <p class="lead">Настройки интеграций и подтверждение email.</p>
+
+  <div class="auth-card" style="max-width: 560px; margin-bottom: 16px;">
+    <div class="form-field">
+      <label>Email аккаунта</label>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border:1px solid #e2e6ec; border-radius:8px;">
+        <span>{{ user.email|default:"—" }}</span>
+        {% if email_address and email_address.verified %}
+          <span class="badge badge--on">подтвержден</span>
+        {% else %}
+          <span class="badge badge--off">не подтвержден</span>
+        {% endif %}
+      </div>
+    </div>
+    <form method="post" action="{% url 'send_confirmation_email' %}" style="margin-top: 10px;">
+      {% csrf_token %}
+      <button type="submit" class="btn btn--ghost btn--sm">Отправить письмо для подтверждения</button>
+    </form>
+  </div>
 
   <form method="post" action="{% url 'profile' %}" class="auth-card form-stack" style="max-width: 560px;">
     {% csrf_token %}
 
     <div class="form-field">
-      <label for="id_telegram_bot_token">Telegram bot token</label>
+      <label for="id_telegram_bot_token">Токен Telegram-бота</label>
       <input
         id="id_telegram_bot_token"
         type="text"
@@ -19,11 +37,11 @@
         autocomplete="off"
         placeholder="123456:ABC-DEF..."
       />
-      <small>Нужен для Telegram action (Bot API).</small>
+      <small>Нужен для узла действия Telegram (Bot API).</small>
     </div>
 
     <div class="form-field">
-      <label for="id_telegram_default_chat_id">Default chat id</label>
+      <label for="id_telegram_default_chat_id">Chat ID по умолчанию</label>
       <input
         id="id_telegram_default_chat_id"
         type="text"
@@ -36,7 +54,7 @@
     </div>
 
     <div class="form-field">
-      <label for="id_postgres_dsn">Postgres DSN (for SQL action)</label>
+      <label for="id_postgres_dsn">Postgres DSN (для SQL action)</label>
       <input
         id="id_postgres_dsn"
         type="text"

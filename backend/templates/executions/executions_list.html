@@ -1,15 +1,34 @@
 {% extends "base.html" %}
 
-{% block title %}Execution Log{% endblock %}
+{% block title %}Журнал запусков{% endblock %}
 
 {% block content %}
-  <h1 class="page-title">Execution Log</h1>
+  <h1 class="page-title">Журнал запусков</h1>
   <p class="lead">Запуски ваших workflows (за последние {{ days }} дней).</p>
 
+  <form method="get" class="toolbar-row" style="margin-bottom: 12px; gap: 8px; flex-wrap: wrap;">
+    <select name="workflow" style="padding: 6px 8px;">
+      <option value="">Все workflow</option>
+      {% for w in workflows %}
+        <option value="{{ w.id }}" {% if filter_workflow == w.id|stringformat:"s" %}selected{% endif %}>{{ w.name }}</option>
+      {% endfor %}
+    </select>
+    <select name="status" style="padding: 6px 8px;">
+      <option value="">Любой статус</option>
+      <option value="success" {% if filter_status == "success" %}selected{% endif %}>success</option>
+      <option value="failed" {% if filter_status == "failed" %}selected{% endif %}>failed</option>
+      <option value="running" {% if filter_status == "running" %}selected{% endif %}>running</option>
+    </select>
+    <input type="date" name="date_from" value="{{ filter_date_from }}" style="padding: 6px 8px;" />
+    <input type="date" name="date_to" value="{{ filter_date_to }}" style="padding: 6px 8px;" />
+    <button type="submit" class="btn btn--ghost" style="padding: 4px 10px;">Фильтр</button>
+    <a href="{% url 'executions_list' %}" class="btn btn--ghost" style="padding: 4px 10px; text-decoration:none;">Сброс</a>
+  </form>
+
   <div class="toolbar-row" style="margin-bottom: 16px;">
-    <span class="badge">Success: {{ stats_map.success|default:0 }}</span>
-    <span class="badge">Failed: {{ stats_map.failed|default:0 }}</span>
-    <span class="badge">Running: {{ stats_map.running|default:0 }}</span>
+    <span class="badge">Успешно: {{ stats_map.success|default:0 }}</span>
+    <span class="badge">С ошибкой: {{ stats_map.failed|default:0 }}</span>
+    <span class="badge">Выполняется: {{ stats_map.running|default:0 }}</span>
   </div>
 
   {% if executions %}
@@ -17,10 +36,10 @@
       <thead>
         <tr>
           <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e2e6ec;">ID</th>
-          <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e2e6ec;">Workflow</th>
-          <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e2e6ec;">Status</th>
-          <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e2e6ec;">Start</th>
-          <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e2e6ec;">End</th>
+          <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e2e6ec;">Сценарий</th>
+          <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e2e6ec;">Статус</th>
+          <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e2e6ec;">Начало</th>
+          <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e2e6ec;">Окончание</th>
         </tr>
       </thead>
       <tbody>

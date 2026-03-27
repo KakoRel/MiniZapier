@@ -191,6 +191,39 @@ def _run_sql_action(dsn: str, query: str, max_rows: int = 100, timeout_sec: int 
     return _to_json_serializable(result)
 
 
+def _run_transform_action(config: dict, payload: object) -> dict:
+    """
+    Safe data transformation without eval:
+    - pick_keys: comma-separated top-level keys to keep from payload object
+    - constants_json: optional JSON object merged into the result
+    """
+    base: dict
+    if isinstance(payload, dict):
+        base = dict(payload)
+    else:
+        base = {"value": payload}
+
+    pick_keys_raw = str((config or {}).get("pick_keys") or "").strip()
+    constants_json_raw = str((config or {}).get("constants_json") or "").strip()
+
+    if pick_keys_raw:
+        keys = [k.strip() for k in pick_keys_raw.split(",") if k.strip()]
+        out = {k: base.get(k) for k in keys if k in base}
+    else:
+        out = dict(base)
+
+    if constants_json_raw:
+        try:
+            constants = json.loads(constants_json_raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError("Transform action: constants_json must be valid JSON object") from exc
+        if not isinstance(constants, dict):
+            raise ValueError("Transform action: constants_json must be JSON object")
+        out.update(constants)
+
+    return _to_json_serializable(out)
+
+
 def _merge_payloads(payloads: list[object]) -> object:
     ps = [p for p in payloads if p is not None]
     if not ps:
@@ -255,7 +288,7 @@ def _extract_email_text(msg) -> str:
                 html_text = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", html_text, flags=re.I | re.S)
                 # Strip tags.
                 html_text = re.sub(r"<[^>]+>", " ", html_text)
-                return re.sub(r"\\s+", " ", html_text).strip()
+                return re.sub(r"\s+", " ", html_text).strip()
     else:
         ctype = (msg.get_content_type() or "").lower()
         if ctype == "text/plain":
@@ -265,7 +298,7 @@ def _extract_email_text(msg) -> str:
             html_text = _decode_part(msg) or ""
             html_text = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", html_text, flags=re.I | re.S)
             html_text = re.sub(r"<[^>]+>", " ", html_text)
-            return re.sub(r"\\s+", " ", html_text).strip()
+            return re.sub(r"\s+", " ", html_text).strip()
     return ""
 
 
@@ -424,6 +457,8 @@ def run_workflow_execution(self, workflow_id: int, trigger_payload: dict | None 
                             query = query_tmpl.replace("{payload}", _safe_json_dumps(step_input))
                             max_rows = int(cfg.get("max_rows") or 100)
                             step_output = _run_sql_action(dsn=dsn, query=query, max_rows=max_rows)
+                        elif kind == "transform":
+                            step_output = _run_transform_action(cfg, step_input)
                         else:
                             # Default action: passthrough payload for early-stage workflows.
                             step_output = step_input

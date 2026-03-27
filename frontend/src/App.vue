@@ -2,9 +2,9 @@
   <div class="editor-wrap">
     <div class="toolbar">
       <span class="title">{{ workflowName }}</span>
-      <button type="button" class="btn btn--ghost" @click="addTriggerNode">+ Trigger</button>
-      <button type="button" class="btn btn--ghost" @click="addActionNode">+ Action</button>
-      <button type="button" class="btn btn--ghost" :disabled="!selectedNodeId" @click="deleteSelectedNode">Delete selected</button>
+      <button type="button" class="btn btn--ghost" @click="addTriggerNode">+ Триггер</button>
+      <button type="button" class="btn btn--ghost" @click="addActionNode">+ Действие</button>
+      <button type="button" class="btn btn--ghost" :disabled="!selectedNodeId" @click="deleteSelectedNode">Удалить выбранный</button>
       <button type="button" class="btn" :disabled="saving || !saveUrl" @click="save">
         {{ saving ? "Сохранение…" : "Сохранить" }}
       </button>
@@ -32,8 +32,8 @@
           class="create-menu"
           :style="{ left: `${createMenu.x}px`, top: `${createMenu.y}px` }"
         >
-          <button type="button" class="btn btn--ghost btn--sm" @click="createNodeFromMenu('action')">Action</button>
-          <button type="button" class="btn btn--ghost btn--sm" @click="closeCreateMenu">Cancel</button>
+          <button type="button" class="btn btn--ghost btn--sm" @click="createNodeFromMenu('action')">Действие</button>
+          <button type="button" class="btn btn--ghost btn--sm" @click="closeCreateMenu">Отмена</button>
         </div>
       </div>
       <aside class="side">
@@ -48,9 +48,9 @@
             <label class="field">
               <span>Тип триггера</span>
               <select v-model="selectedTriggerType">
-                <option value="webhook">webhook</option>
-                <option value="cron">cron</option>
-                <option value="email">email</option>
+                <option value="webhook">Webhook</option>
+                <option value="cron">Cron</option>
+                <option value="email">Email (IMAP)</option>
               </select>
             </label>
 
@@ -100,7 +100,7 @@
                 <input v-model.trim="emailConfig.mailbox" type="text" placeholder="INBOX" />
               </label>
               <label class="field">
-                <span>Max messages per poll</span>
+                <span>Макс. писем за один опрос</span>
                 <input v-model.number="emailConfig.max_messages" type="number" min="1" max="50" />
               </label>
               <p class="hint">По умолчанию: polling раз в 5 минут, поиск `UNSEEN`, после обработки помечает письма как Seen.</p>
@@ -113,11 +113,12 @@
             <label class="field">
               <span>Тип действия</span>
               <select v-model="selectedActionType">
-                <option value="">passthrough</option>
-                <option value="http">http</option>
-                <option value="telegram">telegram</option>
-                <option value="email">email</option>
-                <option value="sql">sql</option>
+                <option value="">Передать как есть</option>
+                <option value="http">HTTP</option>
+                <option value="telegram">Telegram</option>
+                <option value="email">Email</option>
+                <option value="sql">SQL</option>
+                <option value="transform">Трансформация</option>
               </select>
             </label>
             <label class="field">
@@ -171,6 +172,17 @@
                 <input v-model.number="selectedSqlMaxRows" type="number" min="1" max="1000" />
               </label>
               <p class="hint">По умолчанию DSN берется из Профиля. Разрешены только SELECT-запросы.</p>
+            </template>
+            <template v-if="selectedActionType === 'transform'">
+              <label class="field">
+                <span>Pick keys (comma-separated)</span>
+                <input v-model.trim="selectedTransformPickKeys" type="text" placeholder="id, email, event" />
+              </label>
+              <label class="field">
+                <span>Constants JSON (optional)</span>
+                <input v-model.trim="selectedTransformConstantsJson" type="text" placeholder='{"source":"minizapier"}' />
+              </label>
+              <p class="hint">Без eval: выбирает top-level ключи и опционально подмешивает JSON-константы.</p>
             </template>
           </template>
         </template>
@@ -546,6 +558,40 @@ const selectedSqlMaxRows = computed({
       config: {
         ...(prev.config || {}),
         max_rows: parsed,
+      },
+    };
+  },
+});
+
+const selectedTransformPickKeys = computed({
+  get() {
+    return selectedNode.value?.data?.config?.pick_keys || "";
+  },
+  set(v) {
+    if (!selectedNode.value) return;
+    const prev = selectedNode.value.data || {};
+    selectedNode.value.data = {
+      ...prev,
+      config: {
+        ...(prev.config || {}),
+        pick_keys: v,
+      },
+    };
+  },
+});
+
+const selectedTransformConstantsJson = computed({
+  get() {
+    return selectedNode.value?.data?.config?.constants_json || "";
+  },
+  set(v) {
+    if (!selectedNode.value) return;
+    const prev = selectedNode.value.data || {};
+    selectedNode.value.data = {
+      ...prev,
+      config: {
+        ...(prev.config || {}),
+        constants_json: v,
       },
     };
   },

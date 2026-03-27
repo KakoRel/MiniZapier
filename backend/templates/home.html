@@ -3,19 +3,22 @@
 {% block title %}Главная{% endblock %}
 
 {% block content %}
-  <h1 class="page-title">Платформа MiniZapier</h1>
-  <p class="lead">Конструктор сценариев автоматизации и исполнитель на Django + Celery.</p>
+  <section class="hero">
+    <p class="hero-badge">Автоматизация без кода</p>
+    <h1 class="page-title">Платформа MiniZapier</h1>
+    <p class="lead">Визуальный редактор сценариев и исполнитель на Django + Celery.</p>
+  </section>
 
   {% if user.is_authenticated %}
-    <p>Вы вошли в систему.</p>
+    <p>Вы вошли в систему и можете запускать рабочие процессы.</p>
     <div class="toolbar-row">
       <a class="btn btn--primary" href="{% url 'workflow_list' %}">Мои сценарии</a>
       <a class="btn btn--ghost" href="{% url 'workflow_create' %}">Новый сценарий</a>
-      <a class="btn btn--ghost" href="{% url 'executions_list' %}">Execution Log</a>
+      <a class="btn btn--ghost" href="{% url 'executions_list' %}">Журнал запусков</a>
       <a class="btn btn--ghost" href="/admin/">Админка</a>
     </div>
   {% else %}
-    <p class="lead" style="margin-bottom: 16px;">Войдите или зарегистрируйтесь, чтобы создавать сценарии.</p>
+    <p class="lead" style="margin-bottom: 16px;">Войдите или зарегистрируйтесь, чтобы создавать и запускать сценарии.</p>
     <div class="toolbar-row">
       <a class="btn btn--primary" href="{% url 'account_login' %}">Войти</a>
       <a class="btn btn--ghost" href="{% url 'account_signup' %}">Регистрация</a>
