@@ -136,6 +136,7 @@ a:hover {
 .content {
   max-width: 1160px;
   padding: 28px 28px 52px;
+  margin: 0 auto;
 }
 
 @media (max-width: 900px) {
@@ -693,8 +694,8 @@ th, td {
 }
 
 .toggle--on {
-  background: rgba(255, 74, 0, 0.22);
-  border-color: rgba(255, 74, 0, 0.35);
+  background: rgba(34, 197, 94, 0.18);
+  border-color: rgba(34, 197, 94, 0.35);
 }
 
 .toggle--on .toggle-knob {

@@ -29,7 +29,11 @@
 
     <div class="form-field">
       <label>Переменные (ключ → значение)</label>
-      <small>Используй в сценариях как <code>{{ "{{VAR_NAME}}" }}</code>. Например: <code>{{ "{{TG_API_TOKEN}}" }}</code>.</small>
+      <small>
+        Используй в сценариях как
+        <code>{% templatetag openvariable %}VAR_NAME{% templatetag closevariable %}</code>.
+        Например: <code>{% templatetag openvariable %}TG_API_TOKEN{% templatetag closevariable %}</code>.
+      </small>
       <div class="card" style="padding: 12px; background: var(--surface-muted); box-shadow:none;">
         <table class="table" style="border-collapse: separate; border-spacing: 0;">
           <thead>
@@ -54,7 +58,13 @@
                   </label>
                 </td>
                 <td>
-                  <button type="button" class="btn btn--ghost btn--sm" onclick="navigator.clipboard.writeText('{{ '{{' }}{{ v.key }}{{ '}}' }}')">копировать</button>
+                  <button
+                    type="button"
+                    class="btn btn--ghost btn--sm"
+                    onclick="navigator.clipboard.writeText('{% templatetag openvariable %}{{ v.key }}{% templatetag closevariable %}')"
+                  >
+                    копировать
+                  </button>
                 </td>
               </tr>
             {% endfor %}

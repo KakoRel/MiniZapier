@@ -26,5 +26,6 @@ if (root) {
     workflowName: p.workflowName || "",
     initial: p.flow_data || {},
     saveUrl: p.saveUrl || "",
+    userVariableKeys: Array.isArray(p.userVariableKeys) ? p.userVariableKeys : [],
   }).mount("#workflow-editor-root");
 }

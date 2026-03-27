@@ -14,6 +14,8 @@ from django_celery_beat.models import CrontabSchedule, PeriodicTask
 
 from executions.tasks import run_workflow_execution
 
+from users.models import UserVariable
+
 from .models import Trigger, Workflow
 
 
@@ -197,6 +199,13 @@ def workflow_edit(request, pk: int):
             cron_cfg = trigger.config or {}
         elif trigger.type == Trigger.TYPE_EMAIL:
             email_cfg = trigger.config or {}
+
+    user_variable_keys: list[str] = []
+    prof = getattr(request.user, "profile", None)
+    if prof:
+        user_variable_keys = list(
+            UserVariable.objects.filter(profile=prof).order_by("key").values_list("key", flat=True)
+        )
     editor_payload = {
         "workflowId": wf.pk,
         "workflowName": wf.name,
@@ -208,6 +217,7 @@ def workflow_edit(request, pk: int):
         "webhookUrl": request.build_absolute_uri(
             reverse("workflow_webhook", args=[wf.pk, webhook_secret or "missing-secret"])
         ),
+        "userVariableKeys": user_variable_keys,
     }
     return render(
         request,

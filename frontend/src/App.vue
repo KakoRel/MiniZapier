@@ -122,6 +122,16 @@
               </select>
             </label>
             <label class="field">
+              <span>Merge policy (несколько входов)</span>
+              <select v-model="selectedMergePolicy">
+                <option value="auto">auto</option>
+                <option value="dict_merge">dict merge (shallow)</option>
+                <option value="last">last wins</option>
+                <option value="list_concat">list concat</option>
+                <option value="namespace">namespace by input id</option>
+              </select>
+            </label>
+            <label class="field">
               <span>Поведение при ошибке</span>
               <select v-model="selectedOnErrorPolicy">
                 <option value="stop">stop on error</option>
@@ -133,6 +143,13 @@
               <input v-model.trim="selectedHttpUrl" type="url" placeholder="https://api.example.com/hook" />
             </label>
             <template v-if="selectedActionType === 'telegram'">
+              <label class="field">
+                <span>Bot token</span>
+                <select v-model="selectedTelegramBotTokenVar">
+                  <option value="">из Профиля (по умолчанию)</option>
+                  <option v-for="k in variableKeys" :key="k" :value="k">{{ "{{" + k + "}" + "}" }}</option>
+                </select>
+              </label>
               <label class="field">
                 <span>Chat ID (optional)</span>
                 <input v-model.trim="selectedTelegramChatId" type="text" placeholder="-100123... или 12345" />
@@ -159,6 +176,13 @@
               <p class="hint">Отправка идёт через SMTP из .env (EMAIL_*). Можно использовать {payload}.</p>
             </template>
             <template v-if="selectedActionType === 'sql'">
+              <label class="field">
+                <span>DSN из переменных (optional)</span>
+                <select v-model="selectedSqlDsnVar">
+                  <option value="">из Профиля (по умолчанию)</option>
+                  <option v-for="k in variableKeys" :key="k" :value="k">{{ "{{" + k + "}" + "}" }}</option>
+                </select>
+              </label>
               <label class="field">
                 <span>DSN override (optional)</span>
                 <input v-model.trim="selectedSqlDsnOverride" type="text" placeholder="postgresql://user:pass@host:5432/db" />
@@ -202,7 +226,12 @@ const props = defineProps({
   workflowName: { type: String, default: "" },
   initial: { type: Object, default: () => ({}) },
   saveUrl: { type: String, default: "" },
+  userVariableKeys: { type: Array, default: () => [] },
 });
+
+const variableKeys = computed(() =>
+  (Array.isArray(props.userVariableKeys) ? props.userVariableKeys : []).map((k) => String(k || "").toUpperCase())
+);
 
 const defaultNodes = () => [
   {
@@ -426,6 +455,23 @@ const selectedOnErrorPolicy = computed({
   },
 });
 
+const selectedMergePolicy = computed({
+  get() {
+    return selectedNode.value?.data?.config?.merge_policy || "auto";
+  },
+  set(v) {
+    if (!selectedNode.value) return;
+    const prev = selectedNode.value.data || {};
+    selectedNode.value.data = {
+      ...prev,
+      config: {
+        ...(prev.config || {}),
+        merge_policy: v || "auto",
+      },
+    };
+  },
+});
+
 const selectedTelegramChatId = computed({
   get() {
     return selectedNode.value?.data?.config?.chat_id || "";
@@ -438,6 +484,26 @@ const selectedTelegramChatId = computed({
       config: {
         ...(prev.config || {}),
         chat_id: v,
+      },
+    };
+  },
+});
+
+const selectedTelegramBotTokenVar = computed({
+  get() {
+    const raw = String(selectedNode.value?.data?.config?.bot_token || "").trim();
+    const m = raw.match(/^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$/);
+    return m ? String(m[1] || "").toUpperCase() : "";
+  },
+  set(v) {
+    if (!selectedNode.value) return;
+    const prev = selectedNode.value.data || {};
+    const key = String(v || "").trim().toUpperCase();
+    selectedNode.value.data = {
+      ...prev,
+      config: {
+        ...(prev.config || {}),
+        bot_token: key ? `{{${key}}}` : "",
       },
     };
   },
@@ -523,6 +589,26 @@ const selectedSqlDsnOverride = computed({
       config: {
         ...(prev.config || {}),
         dsn_override: v,
+      },
+    };
+  },
+});
+
+const selectedSqlDsnVar = computed({
+  get() {
+    const raw = String(selectedNode.value?.data?.config?.dsn_override || "").trim();
+    const m = raw.match(/^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$/);
+    return m ? String(m[1] || "").toUpperCase() : "";
+  },
+  set(v) {
+    if (!selectedNode.value) return;
+    const prev = selectedNode.value.data || {};
+    const key = String(v || "").trim().toUpperCase();
+    selectedNode.value.data = {
+      ...prev,
+      config: {
+        ...(prev.config || {}),
+        dsn_override: key ? `{{${key}}}` : "",
       },
     };
   },

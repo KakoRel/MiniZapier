@@ -261,18 +261,62 @@ def _run_transform_action(config: dict, payload: object) -> dict:
     return _to_json_serializable(out)
 
 
-def _merge_payloads(payloads: list[object]) -> object:
-    ps = [p for p in payloads if p is not None]
-    if not ps:
+def _merge_payloads(
+    items: list[tuple[str, object]],
+    policy: str = "auto",
+) -> object:
+    """
+    Merge payloads from multiple incoming edges.
+    `items` is list of (source_node_id, payload).
+
+    Policies:
+    - auto: if all dict -> shallow dict merge; if all list -> concat; else last wins
+    - dict_merge: shallow dict merge (later overwrites earlier)
+    - last: last wins
+    - list_concat: concatenate lists (non-lists ignored)
+    - namespace: {"<source_id>": payload, ...}
+    """
+    filtered = [(sid, p) for sid, p in items if p is not None]
+    if not filtered:
         return {}
-    if len(ps) == 1:
-        return ps[0]
-    if all(isinstance(p, dict) for p in ps):
+    if len(filtered) == 1:
+        return filtered[0][1]
+
+    pol = (policy or "auto").strip().lower()
+    payloads = [p for _, p in filtered]
+
+    if pol == "namespace":
+        return {sid: _to_json_serializable(p) for sid, p in filtered}
+
+    if pol == "last":
+        return payloads[-1]
+
+    if pol == "dict_merge":
         merged: dict = {}
-        for p in ps:
+        for p in payloads:
+            if isinstance(p, dict):
+                merged.update(p)
+        return merged
+
+    if pol == "list_concat":
+        out: list = []
+        for p in payloads:
+            if isinstance(p, list):
+                out.extend(p)
+        return out
+
+    # auto
+    if all(isinstance(p, dict) for p in payloads):
+        merged: dict = {}
+        for p in payloads:
             merged.update(p)
         return merged
-    return ps[-1]
+    if all(isinstance(p, list) for p in payloads):
+        out: list = []
+        for p in payloads:
+            out.extend(p)
+        return out
+    return payloads[-1]
 
 
 def _decode_mime_words(value: str) -> str:
@@ -443,15 +487,16 @@ def run_workflow_execution(self, workflow_id: int, trigger_payload: dict | None 
                 label = data.get("label") or f"step-{idx}"
                 kind = (data.get("actionType") or "").strip().lower()
                 cfg = _interpolate_vars((data.get("config") or {}), variables) or {}
-                predecessors = incoming.get(node_id, [])
-                pred_payloads: list[object] = []
+                predecessors = sorted(incoming.get(node_id, []))
+                pred_items: list[tuple[str, object]] = []
                 for pred_id in predecessors:
                     pred_node = node_map.get(pred_id) or {}
                     if _is_trigger_node(pred_node):
-                        pred_payloads.append(trigger_payload_local)
+                        pred_items.append((pred_id, trigger_payload_local))
                     else:
-                        pred_payloads.append(outputs.get(pred_id))
-                step_input = _merge_payloads(pred_payloads) if pred_payloads else trigger_payload_local
+                        pred_items.append((pred_id, outputs.get(pred_id)))
+                merge_policy = str(cfg.get("merge_policy") or "auto")
+                step_input = _merge_payloads(pred_items, policy=merge_policy) if pred_items else trigger_payload_local
                 retry_max_attempts = int(cfg.get("retry_max_attempts", 1) or 1)
                 continue_on_error = bool(cfg.get("continue_on_error", False))
 
