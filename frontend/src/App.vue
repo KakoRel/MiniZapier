@@ -1049,6 +1049,7 @@ onMounted(() => {
   border-left: 1px solid #eee;
   background: #fff;
   padding: 12px;
+  overflow: auto;
 }
 
 .field {
