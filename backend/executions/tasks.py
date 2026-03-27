@@ -231,7 +231,10 @@ def _run_sql_action(dsn: str, query: str, max_rows: int = 100, timeout_sec: int 
 def _run_transform_action(config: dict, payload: object) -> dict:
     """
     Safe data transformation without eval:
-    - pick_keys: comma-separated top-level keys to keep from payload object
+    - pick_keys: comma-separated keys to keep from payload object
+      Supports dotted paths (e.g. "email.subject").
+      For IMAP-style payloads also supports fallback from nested "email" object
+      when bare keys are used (e.g. "subject,from,text,date").
     - constants_json: optional JSON object merged into the result
     """
     base: dict
@@ -240,12 +243,34 @@ def _run_transform_action(config: dict, payload: object) -> dict:
     else:
         base = {"value": payload}
 
+    def _extract_by_path(obj: object, key_path: str):
+        if not key_path:
+            return False, None
+        parts = [p.strip() for p in str(key_path).split(".") if p.strip()]
+        if not parts:
+            return False, None
+        cur = obj
+        for part in parts:
+            if not isinstance(cur, dict) or part not in cur:
+                return False, None
+            cur = cur.get(part)
+        return True, cur
+
     pick_keys_raw = str((config or {}).get("pick_keys") or "").strip()
     constants_json_raw = str((config or {}).get("constants_json") or "").strip()
 
     if pick_keys_raw:
         keys = [k.strip() for k in pick_keys_raw.split(",") if k.strip()]
-        out = {k: base.get(k) for k in keys if k in base}
+        out: dict = {}
+        for key in keys:
+            found, value = _extract_by_path(base, key)
+            if found:
+                out[key] = value
+                continue
+            # Convenience fallback for IMAP payload shape: {"email": {...}}.
+            email_obj = base.get("email") if isinstance(base, dict) else None
+            if isinstance(email_obj, dict) and key in email_obj:
+                out[key] = email_obj.get(key)
     else:
         out = dict(base)
 
@@ -259,6 +284,48 @@ def _run_transform_action(config: dict, payload: object) -> dict:
         out.update(constants)
 
     return _to_json_serializable(out)
+
+
+def _extract_by_path(payload: object, key_path: str):
+    parts = [p.strip() for p in str(key_path or "").split(".") if p.strip()]
+    if not parts:
+        return False, None
+    cur = payload
+    for part in parts:
+        if not isinstance(cur, dict) or part not in cur:
+            return False, None
+        cur = cur.get(part)
+    return True, cur
+
+
+def _render_text_template(text_tmpl: str, payload: object) -> str:
+    """
+    Render user-friendly placeholders in text templates:
+    - {payload} -> full JSON payload
+    - {subject}/{from}/{text}/{date} -> values from payload or payload.email
+    - {email.subject} -> dotted path lookup
+    """
+    text = str(text_tmpl or "")
+    text = text.replace("{payload}", _safe_json_dumps(payload))
+
+    placeholder_pattern = re.compile(r"\{([A-Za-z_][A-Za-z0-9_.-]*)\}")
+
+    def repl(match: re.Match[str]) -> str:
+        key = str(match.group(1) or "").strip()
+        if not key:
+            return match.group(0)
+        found, value = _extract_by_path(payload, key)
+        if found:
+            return "" if value is None else str(value)
+        # Convenience fallback for IMAP payload {"email": {...}}
+        if isinstance(payload, dict):
+            email_obj = payload.get("email")
+            if isinstance(email_obj, dict) and key in email_obj:
+                v = email_obj.get(key)
+                return "" if v is None else str(v)
+        return match.group(0)
+
+    return placeholder_pattern.sub(repl, text)
 
 
 def _merge_payloads(
@@ -528,15 +595,14 @@ def run_workflow_execution(self, workflow_id: int, trigger_payload: dict | None 
                             token = str(token or "").strip()
                             chat_id = (cfg.get("chat_id") or getattr(profile, "telegram_default_chat_id", "") or "").strip()
                             text_tmpl = str(cfg.get("text") or "")
-                            text = text_tmpl.replace("{payload}", _safe_json_dumps(step_input))
+                            text = _render_text_template(text_tmpl, step_input)
                             step_output = _run_telegram_action(token=token, chat_id=chat_id, text=text)
                         elif kind == "email":
                             to_raw = str(cfg.get("to") or "").strip()
                             subject_tmpl = str(cfg.get("subject") or "")
                             body_tmpl = str(cfg.get("body") or "")
-                            payload_str = _safe_json_dumps(step_input)
-                            subject = subject_tmpl.replace("{payload}", payload_str)
-                            body = body_tmpl.replace("{payload}", payload_str)
+                            subject = _render_text_template(subject_tmpl, step_input)
+                            body = _render_text_template(body_tmpl, step_input)
                             to_list = _split_emails(to_raw)
                             if not to_list:
                                 raise ValueError("Email action requires `config.to`")
@@ -745,15 +811,14 @@ def _orig_run_for_resume(
                     token = str(token or "").strip()
                     chat_id = (cfg.get("chat_id") or getattr(profile, "telegram_default_chat_id", "") or "").strip()
                     text_tmpl = str(cfg.get("text") or "")
-                    text = text_tmpl.replace("{payload}", _safe_json_dumps(step_input))
+                    text = _render_text_template(text_tmpl, step_input)
                     step_output = _run_telegram_action(token=token, chat_id=chat_id, text=text)
                 elif kind == "email":
                     to_raw = str(cfg.get("to") or "").strip()
                     subject_tmpl = str(cfg.get("subject") or "")
                     body_tmpl = str(cfg.get("body") or "")
-                    payload_str = _safe_json_dumps(step_input)
-                    subject = subject_tmpl.replace("{payload}", payload_str)
-                    body = body_tmpl.replace("{payload}", payload_str)
+                    subject = _render_text_template(subject_tmpl, step_input)
+                    body = _render_text_template(body_tmpl, step_input)
                     to_list = _split_emails(to_raw)
                     if not to_list:
                         raise ValueError("Email action requires `config.to`")

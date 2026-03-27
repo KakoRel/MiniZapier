@@ -145,6 +145,13 @@
                 <option value="transform">Трансформация</option>
               </select>
             </label>
+            <div class="field field--inline">
+              <span>Режим настроек</span>
+              <div class="segmented">
+                <button type="button" class="segmented__btn" :class="{ 'segmented__btn--active': editorUiMode === 'simple' }" @click="setEditorUiMode('simple')">Простой</button>
+                <button type="button" class="segmented__btn" :class="{ 'segmented__btn--active': editorUiMode === 'advanced' }" @click="setEditorUiMode('advanced')">Профи</button>
+              </div>
+            </div>
             <label class="field">
               <span>Merge policy (несколько входов)</span>
               <select v-model="selectedMergePolicy">
@@ -163,11 +170,46 @@
                 <option value="pause">pause (resume later)</option>
               </select>
             </label>
-            <label v-if="selectedActionType === 'http'" class="field">
+            <template v-if="selectedActionType === 'http' && editorUiMode === 'simple'">
+              <label class="field">
+                <span>Куда отправлять (Webhook URL)</span>
+                <input v-model.trim="selectedHttpUrl" type="url" placeholder="https://webhook.site/..." />
+              </label>
+              <p class="hint">Отправка всегда POST. В body уходит весь входящий payload.</p>
+            </template>
+            <label v-else-if="selectedActionType === 'http'" class="field">
               <span>HTTP URL</span>
               <input v-model.trim="selectedHttpUrl" type="url" placeholder="https://api.example.com/hook" />
             </label>
-            <template v-if="selectedActionType === 'telegram'">
+            <template v-if="selectedActionType === 'telegram' && editorUiMode === 'simple'">
+              <label class="field">
+                <span>Бот</span>
+                <select v-model="selectedTelegramBotTokenVar">
+                  <option value="">из Профиля (по умолчанию)</option>
+                  <option v-for="k in variableKeys" :key="k" :value="k">{{ "{{" + k + "}" + "}" }}</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Кому отправить (Chat ID)</span>
+                <input v-model.trim="selectedTelegramChatId" type="text" placeholder="-100123... или 12345" />
+              </label>
+              <label class="field">
+                <span>Текст сообщения</span>
+                <textarea v-model.trim="selectedTelegramText" rows="4" placeholder="Новый email: {subject} от {from}" />
+              </label>
+              <div class="field">
+                <span>Быстрые вставки</span>
+                <div class="chips">
+                  <button type="button" class="chip" @click="insertTelegramToken('{subject}')">{subject}</button>
+                  <button type="button" class="chip" @click="insertTelegramToken('{from}')">{from}</button>
+                  <button type="button" class="chip" @click="insertTelegramToken('{text}')">{text}</button>
+                  <button type="button" class="chip" @click="insertTelegramToken('{date}')">{date}</button>
+                  <button type="button" class="chip" @click="insertTelegramToken('{payload}')">{payload}</button>
+                </div>
+              </div>
+              <p class="hint">Поддерживаются {subject}/{from}/{text}/{date} (в т.ч. из email.*), а также {payload} целиком.</p>
+            </template>
+            <template v-else-if="selectedActionType === 'telegram'">
               <label class="field">
                 <span>Bot token</span>
                 <select v-model="selectedTelegramBotTokenVar">
@@ -185,7 +227,22 @@
               </label>
               <p class="hint">Токен и default chat id берутся из Профиля.</p>
             </template>
-            <template v-if="selectedActionType === 'email'">
+            <template v-if="selectedActionType === 'email' && editorUiMode === 'simple'">
+              <label class="field">
+                <span>Кому</span>
+                <input v-model.trim="selectedEmailTo" type="text" placeholder="user@example.com, other@example.com" />
+              </label>
+              <label class="field">
+                <span>Тема</span>
+                <input v-model.trim="selectedEmailSubject" type="text" placeholder="Новый email: {subject}" />
+              </label>
+              <label class="field">
+                <span>Текст</span>
+                <textarea v-model.trim="selectedEmailBody" rows="4" placeholder="От {from}, дата {date}" />
+              </label>
+              <p class="hint">Можно использовать {subject}/{from}/{text}/{date} и {payload}.</p>
+            </template>
+            <template v-else-if="selectedActionType === 'email'">
               <label class="field">
                 <span>To</span>
                 <input v-model.trim="selectedEmailTo" type="text" placeholder="user@example.com, other@example.com" />
@@ -200,7 +257,33 @@
               </label>
               <p class="hint">Отправка идёт через SMTP из .env (EMAIL_*). Можно использовать {payload}.</p>
             </template>
-            <template v-if="selectedActionType === 'sql'">
+            <template v-if="selectedActionType === 'sql' && editorUiMode === 'simple'">
+              <label class="field">
+                <span>DSN из переменных</span>
+                <select v-model="selectedSqlDsnVar">
+                  <option value="">из Профиля (по умолчанию)</option>
+                  <option v-for="k in variableKeys" :key="k" :value="k">{{ "{{" + k + "}" + "}" }}</option>
+                </select>
+              </label>
+              <div class="field">
+                <span>Быстрый шаблон запроса</span>
+                <div class="chips">
+                  <button type="button" class="chip" @click="applySqlPreset('ping')">Проверка БД</button>
+                  <button type="button" class="chip" @click="applySqlPreset('raw_payload')">Посмотреть payload</button>
+                  <button type="button" class="chip" @click="applySqlPreset('email_fields')">Поля email</button>
+                </div>
+              </div>
+              <label class="field">
+                <span>SQL (только SELECT)</span>
+                <textarea v-model.trim="selectedSqlQuery" rows="4" placeholder="SELECT now() as ts" />
+              </label>
+              <label class="field">
+                <span>Макс. строк</span>
+                <input v-model.number="selectedSqlMaxRows" type="number" min="1" max="1000" />
+              </label>
+              <p class="hint">MVP ограничение: разрешены только SELECT-запросы.</p>
+            </template>
+            <template v-else-if="selectedActionType === 'sql'">
               <label class="field">
                 <span>DSN из переменных (optional)</span>
                 <select v-model="selectedSqlDsnVar">
@@ -222,17 +305,60 @@
               </label>
               <p class="hint">По умолчанию DSN берется из Профиля. Разрешены только SELECT-запросы.</p>
             </template>
-            <template v-if="selectedActionType === 'transform'">
+            <template v-if="selectedActionType === 'transform' && editorUiMode === 'simple'">
+              <div class="field">
+                <span>Какие поля оставить</span>
+                <div class="checks">
+                  <label class="check"><input type="checkbox" :checked="hasTransformField('subject')" @change="toggleTransformField('subject', $event)" /> subject</label>
+                  <label class="check"><input type="checkbox" :checked="hasTransformField('from')" @change="toggleTransformField('from', $event)" /> from</label>
+                  <label class="check"><input type="checkbox" :checked="hasTransformField('text')" @change="toggleTransformField('text', $event)" /> text</label>
+                  <label class="check"><input type="checkbox" :checked="hasTransformField('date')" @change="toggleTransformField('date', $event)" /> date</label>
+                  <label class="check"><input type="checkbox" :checked="hasTransformField('message_id')" @change="toggleTransformField('message_id', $event)" /> message_id</label>
+                </div>
+              </div>
+              <div class="field">
+                <span>Постоянные поля (константы)</span>
+                <div v-for="(row, idx) in transformConstantsRows" :key="`c-${idx}`" class="kv-row">
+                  <input :value="row.key" type="text" placeholder="key" @input="updateTransformConstantKey(idx, $event.target.value)" />
+                  <input :value="row.value" type="text" placeholder="value" @input="updateTransformConstantValue(idx, $event.target.value)" />
+                  <button type="button" class="btn btn--ghost btn--sm" @click="removeTransformConstantRow(idx)">×</button>
+                </div>
+                <button type="button" class="btn btn--ghost btn--sm" @click="addTransformConstantRow">+ Добавить поле</button>
+              </div>
+              <p class="hint">Для сложных кейсов переключитесь в режим “Профи”.</p>
+            </template>
+            <template v-else-if="selectedActionType === 'transform'">
               <label class="field">
                 <span>Pick keys (comma-separated)</span>
-                <input v-model.trim="selectedTransformPickKeys" type="text" placeholder="id, email, event" />
+                <input v-model.trim="selectedTransformPickKeys" type="text" placeholder="subject,from,text,date или email.subject" />
               </label>
               <label class="field">
                 <span>Constants JSON (optional)</span>
                 <input v-model.trim="selectedTransformConstantsJson" type="text" placeholder='{"source":"minizapier"}' />
               </label>
-              <p class="hint">Без eval: выбирает top-level ключи и опционально подмешивает JSON-константы.</p>
+              <p class="hint">Без eval: поддерживает top-level, nested path через точку и fallback из email.* для IMAP payload.</p>
             </template>
+            <div class="card-lite">
+              <div class="card-lite__title">Тест узла (без запуска workflow)</div>
+              <label class="field">
+                <span>Тестовый payload (JSON)</span>
+                <textarea v-model="nodeTestInputRaw" rows="6" placeholder='{"email":{"subject":"Test","from":"user@example.com"}}' />
+              </label>
+              <div class="chips">
+                <button type="button" class="chip" @click="applyNodeTestPreset('imap')">IMAP пример</button>
+                <button type="button" class="chip" @click="applyNodeTestPreset('simple')">Простой пример</button>
+                <button type="button" class="chip" @click="applyNodeTestPreset('empty')">Очистить</button>
+              </div>
+              <div class="btn-row">
+                <button type="button" class="btn btn--ghost btn--sm" @click="runNodeTest">Проверить</button>
+              </div>
+              <p v-if="nodeTestError" class="hint hint--error">{{ nodeTestError }}</p>
+              <label class="field">
+                <span>Результат preview</span>
+                <textarea :value="nodeTestOutputPretty" rows="8" readonly />
+              </label>
+              <p class="hint">Preview не отправляет запросы наружу, а показывает локально рассчитанный результат.</p>
+            </div>
           </template>
         </template>
       </aside>
@@ -264,6 +390,8 @@ const props = defineProps({
 const variableKeys = computed(() =>
   (Array.isArray(props.userVariableKeys) ? props.userVariableKeys : []).map((k) => String(k || "").toUpperCase())
 );
+const UI_MODE_LS_KEY = "minizapier:editor-ui-mode";
+const editorUiMode = ref("simple");
 
 const defaultNodes = () => [
   {
@@ -324,6 +452,10 @@ const selectedEdgeId = ref("");
 const pendingSourceNodeId = ref("");
 const createMenu = ref({ visible: false, x: 0, y: 0, flowX: 0, flowY: 0 });
 const edgeMenu = ref({ visible: false, x: 0, y: 0, edgeId: "" });
+const suppressPaneClickUntil = ref(0);
+const nodeTestInputRaw = ref('{"email":{"subject":"Test","from":"user@example.com","text":"Hello","date":"2026-03-27T12:00:00Z"}}');
+const nodeTestOutputPretty = ref("{}");
+const nodeTestError = ref("");
 const { project } = useVueFlow();
 const editorWrapRef = ref(null);
 const workAreaWidth = ref(null);
@@ -345,6 +477,16 @@ const LS_SIDE_WIDTH = "minizapier:side-width";
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
+}
+
+function setEditorUiMode(mode) {
+  const next = mode === "advanced" ? "advanced" : "simple";
+  editorUiMode.value = next;
+  try {
+    localStorage.setItem(UI_MODE_LS_KEY, next);
+  } catch (_) {
+    // ignore storage issues
+  }
 }
 
 const workAreaStyle = computed(() => ({
@@ -820,6 +962,222 @@ const selectedTransformConstantsJson = computed({
   },
 });
 
+function insertTelegramToken(token) {
+  const current = String(selectedTelegramText.value || "");
+  selectedTelegramText.value = current ? `${current} ${token}` : token;
+}
+
+function parseTransformFields() {
+  const raw = String(selectedTransformPickKeys.value || "");
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function hasTransformField(field) {
+  const f = String(field || "").trim();
+  if (!f) return false;
+  const fields = parseTransformFields();
+  return fields.includes(f) || fields.includes(`email.${f}`);
+}
+
+function toggleTransformField(field, event) {
+  const checked = !!event?.target?.checked;
+  const f = String(field || "").trim();
+  if (!f) return;
+  const existing = parseTransformFields().filter((k) => k !== f && k !== `email.${f}`);
+  if (checked) existing.push(f);
+  selectedTransformPickKeys.value = existing.join(",");
+}
+
+function parseTransformConstantsRows() {
+  const raw = String(selectedTransformConstantsJson.value || "").trim();
+  if (!raw) return [];
+  try {
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return [];
+    return Object.entries(obj).map(([key, value]) => ({ key, value: value == null ? "" : String(value) }));
+  } catch (_) {
+    return [];
+  }
+}
+
+const transformConstantsRows = computed(() => parseTransformConstantsRows());
+
+function writeTransformConstantsRows(rows) {
+  const out = {};
+  for (const row of rows) {
+    const key = String(row?.key || "").trim();
+    if (!key) continue;
+    out[key] = String(row?.value || "");
+  }
+  selectedTransformConstantsJson.value = Object.keys(out).length ? JSON.stringify(out) : "";
+}
+
+function addTransformConstantRow() {
+  const rows = parseTransformConstantsRows();
+  rows.push({ key: "", value: "" });
+  writeTransformConstantsRows(rows);
+}
+
+function removeTransformConstantRow(idx) {
+  const rows = parseTransformConstantsRows();
+  if (idx < 0 || idx >= rows.length) return;
+  rows.splice(idx, 1);
+  writeTransformConstantsRows(rows);
+}
+
+function updateTransformConstantKey(idx, value) {
+  const rows = parseTransformConstantsRows();
+  if (idx < 0 || idx >= rows.length) return;
+  rows[idx].key = value;
+  writeTransformConstantsRows(rows);
+}
+
+function updateTransformConstantValue(idx, value) {
+  const rows = parseTransformConstantsRows();
+  if (idx < 0 || idx >= rows.length) return;
+  rows[idx].value = value;
+  writeTransformConstantsRows(rows);
+}
+
+function applySqlPreset(kind) {
+  if (kind === "ping") {
+    selectedSqlQuery.value = "SELECT now() as ts";
+    return;
+  }
+  if (kind === "raw_payload") {
+    selectedSqlQuery.value = "SELECT '{payload}'::jsonb as payload";
+    return;
+  }
+  if (kind === "email_fields") {
+    selectedSqlQuery.value = "SELECT '{payload}'::jsonb->'email'->>'subject' as subject, '{payload}'::jsonb->'email'->>'from' as sender, '{payload}'::jsonb->'email'->>'date' as sent_at";
+  }
+}
+
+function deepGet(obj, path) {
+  const parts = String(path || "")
+    .split(".")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (!parts.length) return undefined;
+  let cur = obj;
+  for (const part of parts) {
+    if (!cur || typeof cur !== "object" || !(part in cur)) return undefined;
+    cur = cur[part];
+  }
+  return cur;
+}
+
+function renderTemplateLocal(tmpl, payload) {
+  const text = String(tmpl || "");
+  return text.replace(/\{([A-Za-z_][A-Za-z0-9_.-]*)\}/g, (full, key) => {
+    if (key === "payload") {
+      return JSON.stringify(payload);
+    }
+    const direct = deepGet(payload, key);
+    if (direct !== undefined) return String(direct ?? "");
+    if (payload && typeof payload === "object" && payload.email && typeof payload.email === "object") {
+      const emailVal = payload.email[key];
+      if (emailVal !== undefined) return String(emailVal ?? "");
+    }
+    return full;
+  });
+}
+
+function transformLocal(payload, config) {
+  const base = payload && typeof payload === "object" ? payload : { value: payload };
+  const pickKeys = String(config?.pick_keys || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  let out = {};
+  if (pickKeys.length) {
+    for (const key of pickKeys) {
+      const v = deepGet(base, key);
+      if (v !== undefined) {
+        out[key] = v;
+        continue;
+      }
+      if (base.email && typeof base.email === "object" && key in base.email) {
+        out[key] = base.email[key];
+      }
+    }
+  } else {
+    out = { ...base };
+  }
+  const raw = String(config?.constants_json || "").trim();
+  if (raw) {
+    try {
+      const constants = JSON.parse(raw);
+      if (constants && typeof constants === "object" && !Array.isArray(constants)) {
+        out = { ...out, ...constants };
+      }
+    } catch (_) {
+      // ignore constants parse in preview; backend validates on execute
+    }
+  }
+  return out;
+}
+
+function applyNodeTestPreset(kind) {
+  if (kind === "imap") {
+    nodeTestInputRaw.value = '{"email":{"subject":"Test","from":"user@example.com","text":"Hello mate","date":"2026-03-27T12:00:00Z","message_id":"<abc@local>"},"source":"imap"}';
+    return;
+  }
+  if (kind === "simple") {
+    nodeTestInputRaw.value = '{"subject":"Test","from":"user@example.com","text":"Hello","date":"2026-03-27"}';
+    return;
+  }
+  nodeTestInputRaw.value = "{}";
+}
+
+function runNodeTest() {
+  nodeTestError.value = "";
+  nodeTestOutputPretty.value = "{}";
+  try {
+    const payload = JSON.parse(String(nodeTestInputRaw.value || "{}"));
+    const kind = String(selectedActionType.value || "").trim().toLowerCase();
+    const cfg = selectedNode.value?.data?.config || {};
+    let result = {};
+    if (kind === "transform") {
+      result = transformLocal(payload, cfg);
+    } else if (kind === "telegram") {
+      result = {
+        chat_id: cfg.chat_id || "",
+        text: renderTemplateLocal(cfg.text || "", payload),
+        note: "preview only: telegram API call is not executed",
+      };
+    } else if (kind === "email") {
+      result = {
+        to: cfg.to || "",
+        subject: renderTemplateLocal(cfg.subject || "", payload),
+        body: renderTemplateLocal(cfg.body || "", payload),
+        note: "preview only: email sending is not executed",
+      };
+    } else if (kind === "http") {
+      result = {
+        method: "POST",
+        url: cfg.url || "",
+        body: payload,
+        note: "preview only: HTTP request is not executed",
+      };
+    } else if (kind === "sql") {
+      result = {
+        query: renderTemplateLocal(cfg.query || "", payload),
+        max_rows: cfg.max_rows || 100,
+        note: "preview only: SQL query is not executed",
+      };
+    } else {
+      result = payload;
+    }
+    nodeTestOutputPretty.value = JSON.stringify(result, null, 2);
+  } catch (err) {
+    nodeTestError.value = `Неверный JSON: ${err?.message || "ошибка парсинга"}`;
+  }
+}
+
 function nextNodeId(prefix) {
   const used = new Set(nodes.value.map((n) => String(n.id)));
   let i = 1;
@@ -919,6 +1277,8 @@ function onConnectEnd(evt) {
   const y = Math.max(8, evt.clientY - rect.top);
   const flowPos = project({ x, y });
   createMenu.value = { visible: true, x, y, flowX: flowPos.x, flowY: flowPos.y };
+  // connect-end may be followed by pane-click in the same gesture; keep menu open.
+  suppressPaneClickUntil.value = Date.now() + 180;
 }
 
 function closeCreateMenu() {
@@ -964,6 +1324,7 @@ function onNodeClick(evt) {
 }
 
 function onPaneClick() {
+  if (Date.now() < suppressPaneClickUntil.value) return;
   closeCreateMenu();
   closeEdgeMenu();
   selectedNodeId.value = "";
@@ -1138,6 +1499,15 @@ async function save() {
 }
 
 onMounted(() => {
+  try {
+    const uiMode = String(localStorage.getItem(UI_MODE_LS_KEY) || "").trim().toLowerCase();
+    if (uiMode === "advanced" || uiMode === "simple") {
+      editorUiMode.value = uiMode;
+    }
+  } catch (_) {
+    // ignore storage issues
+  }
+
   const m = mergeInitial(props.initial || {});
   nodes.value = (m.nodes || []).map((n) => {
     if (!n) return n;
@@ -1338,16 +1708,112 @@ onBeforeUnmount(() => {
   margin-bottom: 10px;
 }
 
+.field--inline {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .field input,
-.field select {
+.field select,
+.field textarea {
   border: 1px solid #ccc;
   border-radius: 6px;
   padding: 7px 8px;
 }
 
+.field textarea {
+  resize: vertical;
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.segmented__btn {
+  border: 0;
+  background: #fff;
+  color: #111;
+  cursor: pointer;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.segmented__btn--active {
+  background: #ff4a00;
+  color: #fff;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #fff;
+  color: #111;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.chip:hover {
+  border-color: #ff4a00;
+  color: #ff4a00;
+}
+
+.checks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.kv-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
 .hint {
   color: #666;
   font-size: 13px;
+}
+
+.hint--error {
+  color: #dc2626;
+}
+
+.card-lite {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+  padding: 10px;
+  margin-top: 12px;
+}
+
+.card-lite__title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
 }
 
 .create-menu {
