@@ -1,16 +1,24 @@
 <template>
-  <div class="editor-wrap">
+  <div ref="editorWrapRef" class="editor-wrap">
     <div class="toolbar">
       <span class="title">{{ workflowName }}</span>
       <button type="button" class="btn btn--ghost" @click="addTriggerNode">+ Триггер</button>
       <button type="button" class="btn btn--ghost" @click="addActionNode">+ Действие</button>
       <button type="button" class="btn btn--ghost" :disabled="!selectedNodeId" @click="deleteSelectedNode">Удалить выбранный</button>
+      <button type="button" class="btn btn--ghost" @click="resetLayoutSizes">Сбросить размеры</button>
       <button type="button" class="btn" :disabled="saving || !saveUrl" @click="save">
         {{ saving ? "Сохранение…" : "Сохранить" }}
       </button>
       <span v-if="saveMsg" class="msg">{{ saveMsg }}</span>
     </div>
-    <div class="work-area">
+    <div class="work-area-wrap">
+      <button
+        type="button"
+        class="resize-handle resize-handle--outer resize-handle--left"
+        title="Изменить ширину рабочей области"
+        @mousedown.prevent="startOuterResize('left', $event)"
+      />
+      <div class="work-area" :style="workAreaStyle">
       <div class="flow-host">
         <VueFlow
           v-model:nodes="nodes"
@@ -36,7 +44,13 @@
           <button type="button" class="btn btn--ghost btn--sm" @click="closeCreateMenu">Отмена</button>
         </div>
       </div>
-      <aside class="side">
+      <button
+        type="button"
+        class="resize-handle resize-handle--inner"
+        title="Изменить ширину панели настроек"
+        @mousedown.prevent="startInnerResize($event)"
+      />
+      <aside class="side" :style="sideStyle">
         <h3>Настройка узла</h3>
         <p v-if="!selectedNodeId" class="hint">Выберите узел на схеме</p>
         <template v-else>
@@ -212,6 +226,13 @@
           </template>
         </template>
       </aside>
+      </div>
+      <button
+        type="button"
+        class="resize-handle resize-handle--outer resize-handle--right"
+        title="Изменить ширину рабочей области"
+        @mousedown.prevent="startOuterResize('right', $event)"
+      />
     </div>
   </div>
 </template>
@@ -220,7 +241,7 @@
 import { Background } from "@vue-flow/background";
 import { Controls } from "@vue-flow/controls";
 import { VueFlow, useVueFlow } from "@vue-flow/core";
-import { ref, onMounted, computed } from "vue";
+import { ref, onBeforeUnmount, onMounted, computed } from "vue";
 
 const props = defineProps({
   workflowId: { type: Number, required: true },
@@ -292,6 +313,106 @@ const selectedNodeId = ref("");
 const pendingSourceNodeId = ref("");
 const createMenu = ref({ visible: false, x: 0, y: 0, flowX: 0, flowY: 0 });
 const { project } = useVueFlow();
+const editorWrapRef = ref(null);
+const workAreaWidth = ref(null);
+const sideWidth = ref(320);
+const resizeState = ref({
+  mode: "",
+  startX: 0,
+  startWorkAreaWidth: 0,
+  startSideWidth: 320,
+  outerDirection: "right",
+});
+
+const OUTER_MIN_WIDTH = 760;
+const SIDE_MIN_WIDTH = 260;
+const SIDE_MAX_WIDTH = 620;
+const FLOW_MIN_WIDTH = 380;
+const LS_WORK_AREA_WIDTH = "minizapier:work-area-width";
+const LS_SIDE_WIDTH = "minizapier:side-width";
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+const workAreaStyle = computed(() => ({
+  width: workAreaWidth.value ? `${workAreaWidth.value}px` : "100%",
+}));
+
+const sideStyle = computed(() => ({
+  width: `${sideWidth.value}px`,
+}));
+
+function getEditorWidth() {
+  const el = editorWrapRef.value;
+  if (!el) return 1280;
+  return Math.max(OUTER_MIN_WIDTH, Math.floor(el.clientWidth));
+}
+
+function getMaxSideWidth(targetWorkAreaWidth) {
+  const base = Number.isFinite(targetWorkAreaWidth) ? targetWorkAreaWidth : getEditorWidth();
+  return Math.max(SIDE_MIN_WIDTH, Math.min(SIDE_MAX_WIDTH, base - FLOW_MIN_WIDTH));
+}
+
+function persistSizes() {
+  try {
+    localStorage.setItem(LS_WORK_AREA_WIDTH, String(workAreaWidth.value));
+    localStorage.setItem(LS_SIDE_WIDTH, String(sideWidth.value));
+  } catch (_) {
+    // no-op for private mode / blocked storage
+  }
+}
+
+function resetLayoutSizes() {
+  const editorWidth = getEditorWidth();
+  workAreaWidth.value = editorWidth;
+  sideWidth.value = clamp(320, SIDE_MIN_WIDTH, getMaxSideWidth(editorWidth));
+  persistSizes();
+}
+
+function beginResize(mode, event, outerDirection = "right") {
+  resizeState.value = {
+    mode,
+    startX: event.clientX,
+    startWorkAreaWidth: workAreaWidth.value || getEditorWidth(),
+    startSideWidth: sideWidth.value,
+    outerDirection,
+  };
+  window.addEventListener("mousemove", onResizeMove);
+  window.addEventListener("mouseup", onResizeEnd);
+}
+
+function startOuterResize(direction, event) {
+  beginResize("outer", event, direction);
+}
+
+function startInnerResize(event) {
+  beginResize("inner", event);
+}
+
+function onResizeMove(event) {
+  const st = resizeState.value;
+  if (!st.mode) return;
+  const dx = event.clientX - st.startX;
+  if (st.mode === "outer") {
+    const sign = st.outerDirection === "left" ? -1 : 1;
+    const editorWidth = getEditorWidth();
+    const next = clamp(st.startWorkAreaWidth + dx * sign, OUTER_MIN_WIDTH, editorWidth);
+    workAreaWidth.value = next;
+    sideWidth.value = clamp(sideWidth.value, SIDE_MIN_WIDTH, getMaxSideWidth(next));
+    return;
+  }
+  const next = clamp(st.startSideWidth + dx, SIDE_MIN_WIDTH, getMaxSideWidth(workAreaWidth.value));
+  sideWidth.value = next;
+}
+
+function onResizeEnd() {
+  if (!resizeState.value.mode) return;
+  resizeState.value.mode = "";
+  window.removeEventListener("mousemove", onResizeMove);
+  window.removeEventListener("mouseup", onResizeEnd);
+  persistSizes();
+}
 
 const selectedNode = computed(() =>
   nodes.value.find((node) => node.id === selectedNodeId.value) || null
@@ -974,6 +1095,29 @@ onMounted(() => {
     };
   });
   edges.value = m.edges;
+
+  const editorWidth = getEditorWidth();
+  let initialWorkArea = editorWidth;
+  let initialSide = 320;
+  try {
+    const fromLsWorkArea = Number(localStorage.getItem(LS_WORK_AREA_WIDTH));
+    const fromLsSide = Number(localStorage.getItem(LS_SIDE_WIDTH));
+    if (Number.isFinite(fromLsWorkArea) && fromLsWorkArea > 0) {
+      initialWorkArea = clamp(fromLsWorkArea, OUTER_MIN_WIDTH, editorWidth);
+    }
+    if (Number.isFinite(fromLsSide) && fromLsSide > 0) {
+      initialSide = fromLsSide;
+    }
+  } catch (_) {
+    // ignore storage errors
+  }
+  workAreaWidth.value = initialWorkArea;
+  sideWidth.value = clamp(initialSide, SIDE_MIN_WIDTH, getMaxSideWidth(initialWorkArea));
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("mousemove", onResizeMove);
+  window.removeEventListener("mouseup", onResizeEnd);
 });
 </script>
 
@@ -990,6 +1134,13 @@ onMounted(() => {
   border-radius: 8px;
   overflow: hidden;
   background: #fafafa;
+}
+
+.work-area-wrap {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
 }
 
 .toolbar {
@@ -1046,14 +1197,56 @@ onMounted(() => {
   display: flex;
   flex: 1;
   min-height: 0;
+  margin: 0 auto;
+  min-width: 0;
 }
 
 .side {
-  width: 320px;
   border-left: 1px solid #eee;
   background: #fff;
   padding: 12px;
   overflow: auto;
+  min-width: 0;
+}
+
+.resize-handle {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: ew-resize;
+}
+
+.resize-handle--outer {
+  width: 12px;
+  position: relative;
+}
+
+.resize-handle--outer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 5px;
+  width: 2px;
+  background: #e5e7eb;
+}
+
+.resize-handle--outer:hover::before,
+.resize-handle--outer:focus-visible::before {
+  background: #ff4a00;
+}
+
+.resize-handle--inner {
+  width: 10px;
+  border-left: 1px solid #eee;
+  border-right: 1px solid #eee;
+  background: #fafafa;
+}
+
+.resize-handle--inner:hover,
+.resize-handle--inner:focus-visible {
+  background: #fff2eb;
 }
 
 .field {
