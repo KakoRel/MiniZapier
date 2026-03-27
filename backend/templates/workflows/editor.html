@@ -37,6 +37,13 @@
         {{ editor_payload.cronConfig.month_of_year }} {{ editor_payload.cronConfig.day_of_week }}
       </code>
     </p>
+  {% elif editor_payload.triggerType == "email" %}
+    <p class="lead">
+      IMAP monitor:
+      <code>
+        {{ editor_payload.emailConfig.imap_host }}:{{ editor_payload.emailConfig.imap_port }} · {{ editor_payload.emailConfig.mailbox }}
+      </code>
+    </p>
   {% else %}
     <p class="lead">Триггер не настроен.</p>
   {% endif %}

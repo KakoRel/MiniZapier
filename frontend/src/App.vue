@@ -33,7 +33,6 @@
           :style="{ left: `${createMenu.x}px`, top: `${createMenu.y}px` }"
         >
           <button type="button" class="btn btn--ghost btn--sm" @click="createNodeFromMenu('action')">Action</button>
-          <button type="button" class="btn btn--ghost btn--sm" @click="createNodeFromMenu('trigger')">Trigger</button>
           <button type="button" class="btn btn--ghost btn--sm" @click="closeCreateMenu">Cancel</button>
         </div>
       </div>
@@ -51,6 +50,7 @@
               <select v-model="selectedTriggerType">
                 <option value="webhook">webhook</option>
                 <option value="cron">cron</option>
+                <option value="email">email</option>
               </select>
             </label>
 
@@ -78,6 +78,34 @@
               <p class="hint">Cron сработает только когда workflow активен.</p>
             </template>
 
+            <template v-if="selectedTriggerType === 'email'">
+              <label class="field">
+                <span>IMAP host</span>
+                <input v-model.trim="emailConfig.imap_host" type="text" placeholder="imap.example.com" />
+              </label>
+              <label class="field">
+                <span>IMAP port</span>
+                <input v-model.number="emailConfig.imap_port" type="number" min="1" max="65535" />
+              </label>
+              <label class="field">
+                <span>Username</span>
+                <input v-model.trim="emailConfig.username" type="text" placeholder="user@example.com" />
+              </label>
+              <label class="field">
+                <span>Password</span>
+                <input v-model.trim="emailConfig.password" type="password" placeholder="app password" />
+              </label>
+              <label class="field">
+                <span>Mailbox</span>
+                <input v-model.trim="emailConfig.mailbox" type="text" placeholder="INBOX" />
+              </label>
+              <label class="field">
+                <span>Max messages per poll</span>
+                <input v-model.number="emailConfig.max_messages" type="number" min="1" max="50" />
+              </label>
+              <p class="hint">По умолчанию: polling раз в 5 минут, поиск `UNSEEN`, после обработки помечает письма как Seen.</p>
+            </template>
+
             <p v-if="selectedTriggerType === 'webhook'" class="hint">Webhook URL показывается на странице редактора.</p>
           </template>
 
@@ -90,6 +118,13 @@
                 <option value="telegram">telegram</option>
                 <option value="email">email</option>
                 <option value="sql">sql</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Поведение при ошибке</span>
+              <select v-model="selectedOnErrorPolicy">
+                <option value="stop">stop on error</option>
+                <option value="continue">continue on error</option>
               </select>
             </label>
             <label v-if="selectedActionType === 'http'" class="field">
@@ -182,7 +217,7 @@ const defaultNodes = () => [
       label: "Действие (HTTP)",
       kind: "action",
       actionType: "http",
-      config: { url: "" },
+      config: { url: "", continue_on_error: false },
     },
   },
 ];
@@ -262,6 +297,19 @@ const selectedTriggerType = computed({
     if (v === "cron") {
       selectedNode.value.data.label = "Триггер (Cron)";
     }
+    if (v === "email") {
+      selectedNode.value.data.label = "Триггер (Email/IMAP)";
+      if (!selectedNode.value.data.emailConfig) {
+        selectedNode.value.data.emailConfig = {
+          imap_host: "",
+          imap_port: 993,
+          username: "",
+          password: "",
+          mailbox: "INBOX",
+          max_messages: 5,
+        };
+      }
+    }
   },
 });
 
@@ -297,6 +345,40 @@ const cronConfig = computed({
   },
 });
 
+const emailConfig = computed({
+  get() {
+    if (!selectedNode.value) {
+      return {
+        imap_host: "",
+        imap_port: 993,
+        username: "",
+        password: "",
+        mailbox: "INBOX",
+        max_messages: 5,
+      };
+    }
+    const d = selectedNode.value.data || {};
+    if (!d.emailConfig) {
+      d.emailConfig = {
+        imap_host: "",
+        imap_port: 993,
+        username: "",
+        password: "",
+        mailbox: "INBOX",
+        max_messages: 5,
+      };
+    }
+    return d.emailConfig;
+  },
+  set(v) {
+    if (!selectedNode.value) return;
+    selectedNode.value.data = {
+      ...(selectedNode.value.data || {}),
+      emailConfig: v,
+    };
+  },
+});
+
 const selectedHttpUrl = computed({
   get() {
     return selectedNode.value?.data?.config?.url || "";
@@ -309,6 +391,24 @@ const selectedHttpUrl = computed({
       config: {
         ...(prev.config || {}),
         url: v,
+      },
+    };
+  },
+});
+
+const selectedOnErrorPolicy = computed({
+  get() {
+    const continueOnError = !!selectedNode.value?.data?.config?.continue_on_error;
+    return continueOnError ? "continue" : "stop";
+  },
+  set(v) {
+    if (!selectedNode.value) return;
+    const prev = selectedNode.value.data || {};
+    selectedNode.value.data = {
+      ...prev,
+      config: {
+        ...(prev.config || {}),
+        continue_on_error: v === "continue",
       },
     };
   },
@@ -494,7 +594,7 @@ function addActionNode() {
         label: "Действие",
         kind: "action",
         actionType: "",
-        config: {},
+        config: { continue_on_error: false },
       },
     },
   ];
@@ -558,40 +658,17 @@ function closeCreateMenu() {
 function createNodeFromMenu(kind) {
   if (!pendingSourceNodeId.value) return closeCreateMenu();
   const sourceId = pendingSourceNodeId.value;
-  let nodeId = "";
-  let newNode = null;
-  if (kind === "trigger") {
-    nodeId = nextNodeId("trigger");
-    newNode = {
-      id: nodeId,
-      type: "input",
-      position: { x: createMenu.value.flowX, y: createMenu.value.flowY },
-      data: {
-        label: "Триггер (Webhook)",
-        kind: "trigger",
-        triggerType: "webhook",
-        cronConfig: {
-          minute: "*/5",
-          hour: "*",
-          day_of_week: "*",
-          day_of_month: "*",
-          month_of_year: "*",
-        },
-      },
-    };
-  } else {
-    nodeId = nextNodeId("action");
-    newNode = {
-      id: nodeId,
-      position: { x: createMenu.value.flowX, y: createMenu.value.flowY },
-      data: {
-        label: "Действие",
-        kind: "action",
-        actionType: "",
-        config: {},
-      },
-    };
-  }
+  const nodeId = nextNodeId("action");
+  const newNode = {
+    id: nodeId,
+    position: { x: createMenu.value.flowX, y: createMenu.value.flowY },
+    data: {
+      label: "Действие",
+      kind: "action",
+      actionType: "",
+      config: { continue_on_error: false },
+    },
+  };
   nodes.value = [...nodes.value, newNode];
   edges.value = [
     ...edges.value,
@@ -618,9 +695,82 @@ function getCookie(name) {
   return "";
 }
 
+function isTriggerNode(node) {
+  if (!node) return false;
+  return node.type === "input" || node?.data?.kind === "trigger";
+}
+
+function validateFlowData() {
+  const nodeMap = new Map(nodes.value.map((n) => [String(n.id), n]));
+  const incoming = new Map();
+  const outgoing = new Map();
+  const errors = [];
+
+  for (const node of nodes.value) {
+    const id = String(node.id || "");
+    incoming.set(id, []);
+    outgoing.set(id, []);
+  }
+
+  for (const edge of edges.value) {
+    const source = String(edge?.source || "");
+    const target = String(edge?.target || "");
+    if (!nodeMap.has(source) || !nodeMap.has(target)) {
+      errors.push("Есть связь с несуществующим узлом.");
+      continue;
+    }
+    outgoing.get(source).push(target);
+    incoming.get(target).push(source);
+  }
+
+  const triggerNodes = nodes.value.filter((node) => isTriggerNode(node));
+  if (!triggerNodes.length) {
+    errors.push("Добавьте хотя бы один Trigger.");
+  }
+
+  for (const trigger of triggerNodes) {
+    const triggerId = String(trigger.id);
+    if ((incoming.get(triggerId) || []).length > 0) {
+      const label = trigger?.data?.label || triggerId;
+      errors.push(`Trigger "${label}" должен быть в начале графа (без входящих связей).`);
+    }
+  }
+
+  // Basic DAG check for predictable execution order.
+  const indegree = new Map();
+  for (const node of nodes.value) {
+    const id = String(node.id || "");
+    indegree.set(id, (incoming.get(id) || []).length);
+  }
+  const queue = [];
+  for (const [nodeId, deg] of indegree.entries()) {
+    if (deg === 0) queue.push(nodeId);
+  }
+  let visited = 0;
+  while (queue.length) {
+    const current = queue.shift();
+    visited += 1;
+    for (const next of outgoing.get(current) || []) {
+      const deg = (indegree.get(next) || 0) - 1;
+      indegree.set(next, deg);
+      if (deg === 0) queue.push(next);
+    }
+  }
+  if (visited !== nodes.value.length) {
+    errors.push("Граф содержит цикл. Поддерживается только DAG.");
+  }
+
+  return errors;
+}
+
 async function save() {
   if (!props.saveUrl) return;
   saveMsg.value = "";
+  const validationErrors = validateFlowData();
+  if (validationErrors.length) {
+    saveMsg.value = validationErrors[0];
+    return;
+  }
   saving.value = true;
   try {
     const body = {

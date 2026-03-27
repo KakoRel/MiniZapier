@@ -17,6 +17,55 @@ from executions.tasks import run_workflow_execution
 from .models import Trigger, Workflow
 
 
+def _is_trigger_node(node: dict) -> bool:
+    data = node.get("data") or {}
+    return node.get("type") == "input" or data.get("kind") == "trigger"
+
+
+def _validate_flow_data(flow_data: dict) -> list[str]:
+    nodes = flow_data.get("nodes") or []
+    edges = flow_data.get("edges") or []
+
+    node_ids = {str(n.get("id")) for n in nodes if n.get("id")}
+    incoming: dict[str, list[str]] = {node_id: [] for node_id in node_ids}
+    outgoing: dict[str, list[str]] = {node_id: [] for node_id in node_ids}
+    errors: list[str] = []
+
+    for edge in edges:
+        src = str(edge.get("source", ""))
+        dst = str(edge.get("target", ""))
+        if src not in node_ids or dst not in node_ids:
+            errors.append("Edge references missing node")
+            continue
+        outgoing[src].append(dst)
+        incoming[dst].append(src)
+
+    trigger_ids = [str(n.get("id")) for n in nodes if n.get("id") and _is_trigger_node(n)]
+    if not trigger_ids:
+        errors.append("At least one trigger is required")
+
+    for trigger_id in trigger_ids:
+        if incoming.get(trigger_id):
+            errors.append("Trigger node must not have incoming edges")
+
+    # Kahn DAG check.
+    indegree = {node_id: len(incoming.get(node_id, [])) for node_id in node_ids}
+    queue = [node_id for node_id, deg in indegree.items() if deg == 0]
+    visited = 0
+    while queue:
+        node_id = queue.pop(0)
+        visited += 1
+        for nxt in outgoing.get(node_id, []):
+            indegree[nxt] -= 1
+            if indegree[nxt] == 0:
+                queue.append(nxt)
+
+    if visited != len(node_ids):
+        errors.append("Graph contains cycle")
+
+    return errors
+
+
 def _extract_trigger_from_flow(flow_data: dict) -> tuple[str, dict]:
     nodes = flow_data.get("nodes") or []
     trigger_node = None
@@ -33,8 +82,49 @@ def _extract_trigger_from_flow(flow_data: dict) -> tuple[str, dict]:
 
     data = trigger_node.get("data") or {}
     trigger_type = (data.get("triggerType") or Trigger.TYPE_WEBHOOK).strip() or Trigger.TYPE_WEBHOOK
-    cron_cfg = data.get("cronConfig") or data.get("cron_config") or {}
-    return trigger_type, cron_cfg
+
+    if trigger_type == Trigger.TYPE_CRON:
+        cfg = data.get("cronConfig") or data.get("cron_config") or {}
+        return trigger_type, cfg
+
+    if trigger_type == Trigger.TYPE_EMAIL:
+        cfg = data.get("emailConfig") or data.get("imapConfig") or {}
+        return trigger_type, cfg
+
+    # Webhook doesn't need additional config besides secret in Trigger model.
+    return trigger_type, {}
+
+
+def _sync_email_periodic_task(workflow: Workflow) -> None:
+    trigger = getattr(workflow, "trigger", None)
+    task_name = f"minizapier-workflow-email-{workflow.pk}"
+
+    if not trigger or trigger.type != Trigger.TYPE_EMAIL:
+        PeriodicTask.objects.filter(name=task_name).update(enabled=False)
+        return
+
+    cfg = trigger.config or {}
+    poll_minutes = int(cfg.get("poll_minutes", 5) or 5)
+    poll_minutes = max(1, min(poll_minutes, 60))
+
+    schedule, _ = CrontabSchedule.objects.update_or_create(
+        minute=f"*/{poll_minutes}",
+        hour="*",
+        day_of_week="*",
+        day_of_month="*",
+        month_of_year="*",
+        timezone=settings.TIME_ZONE,
+    )
+
+    PeriodicTask.objects.update_or_create(
+        name=task_name,
+        defaults={
+            "task": "executions.tasks.run_workflow_execution",
+            "crontab": schedule,
+            "args": json.dumps([workflow.pk, {"source": "imap"}]),
+            "enabled": bool(workflow.is_active),
+        },
+    )
 
 
 def _sync_cron_periodic_task(workflow: Workflow) -> None:
@@ -98,11 +188,15 @@ def workflow_edit(request, pk: int):
     webhook_secret = ""
     trigger_type = ""
     cron_cfg = {}
+    email_cfg = {}
     if trigger:
         trigger_type = trigger.type
-        cron_cfg = trigger.config or {}
         if trigger.type == Trigger.TYPE_WEBHOOK:
             webhook_secret = (trigger.config or {}).get("secret", "")
+        elif trigger.type == Trigger.TYPE_CRON:
+            cron_cfg = trigger.config or {}
+        elif trigger.type == Trigger.TYPE_EMAIL:
+            email_cfg = trigger.config or {}
     editor_payload = {
         "workflowId": wf.pk,
         "workflowName": wf.name,
@@ -110,6 +204,7 @@ def workflow_edit(request, pk: int):
         "saveUrl": reverse("workflow_save", args=[wf.pk]),
         "triggerType": trigger_type,
         "cronConfig": cron_cfg,
+        "emailConfig": email_cfg,
         "webhookUrl": request.build_absolute_uri(
             reverse("workflow_webhook", args=[wf.pk, webhook_secret or "missing-secret"])
         ),
@@ -132,9 +227,12 @@ def workflow_save(request, pk: int):
     fd = body.get("flow_data")
     if fd is None:
         return JsonResponse({"error": "Нужен ключ flow_data"}, status=400)
+    validation_errors = _validate_flow_data(fd)
+    if validation_errors:
+        return JsonResponse({"error": f"Ошибка валидации графа: {validation_errors[0]}"}, status=400)
     wf.flow_data = fd
 
-    trigger_type, cron_cfg = _extract_trigger_from_flow(fd)
+    trigger_type, trigger_cfg = _extract_trigger_from_flow(fd)
     trigger = getattr(wf, "trigger", None)
 
     if trigger_type == Trigger.TYPE_WEBHOOK:
@@ -157,17 +255,29 @@ def workflow_save(request, pk: int):
             Trigger.objects.create(
                 workflow=wf,
                 type=Trigger.TYPE_CRON,
-                config=cron_cfg or {},
+                config=trigger_cfg or {},
             )
         else:
             trigger.type = Trigger.TYPE_CRON
-            trigger.config = cron_cfg or {}
+            trigger.config = trigger_cfg or {}
+            trigger.save(update_fields=["type", "config", "updated_at"])
+    elif trigger_type == Trigger.TYPE_EMAIL:
+        if not trigger:
+            Trigger.objects.create(
+                workflow=wf,
+                type=Trigger.TYPE_EMAIL,
+                config=trigger_cfg or {},
+            )
+        else:
+            trigger.type = Trigger.TYPE_EMAIL
+            trigger.config = trigger_cfg or {}
             trigger.save(update_fields=["type", "config", "updated_at"])
     else:
         return JsonResponse({"error": f"Unsupported trigger type: {trigger_type}"}, status=400)
 
     wf.save(update_fields=["flow_data", "updated_at"])
     _sync_cron_periodic_task(wf)
+    _sync_email_periodic_task(wf)
     return JsonResponse({"ok": True})
 
 
@@ -178,6 +288,7 @@ def workflow_toggle_active(request, pk: int):
     wf.is_active = not wf.is_active
     wf.save(update_fields=["is_active", "updated_at"])
     _sync_cron_periodic_task(wf)
+    _sync_email_periodic_task(wf)
     return redirect("workflow_list")
 
 
@@ -199,6 +310,7 @@ def workflow_delete(request, pk: int):
     wf = get_object_or_404(Workflow, pk=pk, user=request.user)
     # Disable periodic task (if any) before deletion.
     PeriodicTask.objects.filter(name=f"minizapier-workflow-cron-{wf.pk}").update(enabled=False)
+    PeriodicTask.objects.filter(name=f"minizapier-workflow-email-{wf.pk}").update(enabled=False)
     wf.delete()
     return redirect("workflow_list")
 
