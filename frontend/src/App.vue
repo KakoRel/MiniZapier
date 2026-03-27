@@ -28,6 +28,8 @@
           :min-zoom="0.2"
           :max-zoom="2"
           @node-click="onNodeClick"
+          @edge-click="onEdgeClick"
+          @pane-click="onPaneClick"
           @connect="onConnect"
           @connect-start="onConnectStart"
           @connect-end="onConnectEnd"
@@ -42,6 +44,14 @@
         >
           <button type="button" class="btn btn--ghost btn--sm" @click="createNodeFromMenu('action')">Действие</button>
           <button type="button" class="btn btn--ghost btn--sm" @click="closeCreateMenu">Отмена</button>
+        </div>
+        <div
+          v-if="edgeMenu.visible"
+          class="create-menu"
+          :style="{ left: `${edgeMenu.x}px`, top: `${edgeMenu.y}px` }"
+        >
+          <button type="button" class="btn btn--ghost btn--sm" @click="deleteEdgeFromMenu">Удалить</button>
+          <button type="button" class="btn btn--ghost btn--sm" @click="closeEdgeMenu">Отмена</button>
         </div>
       </div>
       <button
@@ -310,8 +320,10 @@ const edges = ref([]);
 const saving = ref(false);
 const saveMsg = ref("");
 const selectedNodeId = ref("");
+const selectedEdgeId = ref("");
 const pendingSourceNodeId = ref("");
 const createMenu = ref({ visible: false, x: 0, y: 0, flowX: 0, flowY: 0 });
+const edgeMenu = ref({ visible: false, x: 0, y: 0, edgeId: "" });
 const { project } = useVueFlow();
 const editorWrapRef = ref(null);
 const workAreaWidth = ref(null);
@@ -864,6 +876,8 @@ function deleteSelectedNode() {
   nodes.value = nodes.value.filter((n) => n.id !== nodeId);
   edges.value = edges.value.filter((e) => e.source !== nodeId && e.target !== nodeId);
   selectedNodeId.value = "";
+  selectedEdgeId.value = "";
+  closeEdgeMenu();
 }
 
 function nextEdgeId(source, target) {
@@ -912,6 +926,10 @@ function closeCreateMenu() {
   pendingSourceNodeId.value = "";
 }
 
+function closeEdgeMenu() {
+  edgeMenu.value = { visible: false, x: 0, y: 0, edgeId: "" };
+}
+
 function createNodeFromMenu(kind) {
   if (!pendingSourceNodeId.value) return closeCreateMenu();
   const sourceId = pendingSourceNodeId.value;
@@ -940,7 +958,69 @@ function createNodeFromMenu(kind) {
 }
 
 function onNodeClick(evt) {
+  selectedEdgeId.value = "";
+  closeEdgeMenu();
   selectedNodeId.value = evt?.node?.id || "";
+}
+
+function onPaneClick() {
+  closeCreateMenu();
+  closeEdgeMenu();
+  selectedNodeId.value = "";
+  selectedEdgeId.value = "";
+}
+
+function onEdgeClick(event, edge) {
+  closeCreateMenu();
+  const edgeId = String(edge?.id || "");
+  if (!edgeId) return;
+  selectedNodeId.value = "";
+  selectedEdgeId.value = edgeId;
+  const host = document.querySelector(".flow-host");
+  if (!host) return;
+  const rect = host.getBoundingClientRect();
+  const x = clamp((event?.clientX || rect.left + 80) - rect.left, 8, Math.max(8, rect.width - 120));
+  const y = clamp((event?.clientY || rect.top + 40) - rect.top, 8, Math.max(8, rect.height - 40));
+  edgeMenu.value = { visible: true, x, y, edgeId };
+}
+
+function deleteEdgeFromMenu() {
+  const edgeId = String(edgeMenu.value.edgeId || "");
+  if (!edgeId) return closeEdgeMenu();
+  edges.value = edges.value.filter((e) => String(e.id) !== edgeId);
+  if (selectedEdgeId.value === edgeId) selectedEdgeId.value = "";
+  closeEdgeMenu();
+}
+
+function deleteSelectedEdge() {
+  const edgeId = String(selectedEdgeId.value || "");
+  if (!edgeId) return;
+  edges.value = edges.value.filter((e) => String(e.id) !== edgeId);
+  if (String(edgeMenu.value.edgeId || "") === edgeId) closeEdgeMenu();
+  selectedEdgeId.value = "";
+}
+
+function isTypingTarget(target) {
+  const el = target instanceof Element ? target : null;
+  if (!el) return false;
+  if (el.closest("input, textarea, select")) return true;
+  return !!el.closest("[contenteditable='true']");
+}
+
+function onGlobalKeydown(event) {
+  if (event.defaultPrevented) return;
+  if (event.key !== "Delete" && event.key !== "Backspace") return;
+  if (isTypingTarget(event.target)) return;
+
+  if (selectedEdgeId.value) {
+    event.preventDefault();
+    deleteSelectedEdge();
+    return;
+  }
+  if (selectedNodeId.value) {
+    event.preventDefault();
+    deleteSelectedNode();
+  }
 }
 
 function getCookie(name) {
@@ -1113,11 +1193,13 @@ onMounted(() => {
   }
   workAreaWidth.value = initialWorkArea;
   sideWidth.value = clamp(initialSide, SIDE_MIN_WIDTH, getMaxSideWidth(initialWorkArea));
+  window.addEventListener("keydown", onGlobalKeydown);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener("mousemove", onResizeMove);
   window.removeEventListener("mouseup", onResizeEnd);
+  window.removeEventListener("keydown", onGlobalKeydown);
 });
 </script>
 
