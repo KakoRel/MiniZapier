@@ -44,7 +44,7 @@
             <span>Название</span>
             <input v-model.trim="selectedLabel" type="text" />
           </label>
-          <template v-if="selectedNode?.data?.kind === 'trigger'">
+          <template v-if="isTriggerNode(selectedNode)">
             <label class="field">
               <span>Тип триггера</span>
               <select v-model="selectedTriggerType">
@@ -802,7 +802,41 @@ async function save() {
 
 onMounted(() => {
   const m = mergeInitial(props.initial || {});
-  nodes.value = m.nodes;
+  nodes.value = (m.nodes || []).map((n) => {
+    if (!n) return n;
+    const data = n.data || {};
+    if (isTriggerNode(n)) {
+      const triggerType = (data.triggerType || "webhook").trim?.() ? data.triggerType : "webhook";
+      const normalized = {
+        ...n,
+        type: n.type || "input",
+        data: {
+          ...data,
+          kind: "trigger",
+          triggerType,
+        },
+      };
+      if (triggerType === "email" && !normalized.data.emailConfig) {
+        normalized.data.emailConfig = {
+          imap_host: "",
+          imap_port: 993,
+          username: "",
+          password: "",
+          mailbox: "INBOX",
+          max_messages: 5,
+        };
+      }
+      return normalized;
+    }
+    return {
+      ...n,
+      data: {
+        ...data,
+        kind: data.kind || "action",
+        config: data.config || { continue_on_error: false },
+      },
+    };
+  });
   edges.value = m.edges;
 });
 </script>
