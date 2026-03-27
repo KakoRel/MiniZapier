@@ -1,4 +1,4 @@
-FROM node:20-slim AS frontend_builder
+FROM public.ecr.aws/docker/library/node:20-slim AS frontend_builder
 
 WORKDIR /app
 
@@ -11,7 +11,7 @@ COPY backend /app/backend
 RUN npm run build
 
 
-FROM python:3.13-slim AS runtime
+FROM public.ecr.aws/docker/library/python:3.13-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
