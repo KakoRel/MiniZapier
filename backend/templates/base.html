@@ -9,21 +9,69 @@
     {% block extra_css %}{% endblock %}
   </head>
   <body>
-    <div class="app-shell">
-      <header class="topbar">
-        <div class="brand"><a href="{% url 'home' %}">MiniZapier</a></div>
-        <nav class="nav-actions">
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <a href="{% url 'home' %}">MiniZapier</a>
+        </div>
+        <nav class="sidebar-nav">
           {% if user.is_authenticated %}
-            <span class="user-email" title="{{ user.email }}">{{ user.email }}</span>
-            <a class="btn btn--ghost btn--sm" href="{% url 'workflow_list' %}">Сценарии</a>
-            <a class="btn btn--ghost btn--sm" href="{% url 'profile' %}">Профиль</a>
-            <a class="btn btn--primary btn--sm" href="{% url 'account_logout' %}">Выйти</a>
+            {% with request.path as p %}
+            <a class="nav-item {% if p|slice:':11' == '/workflows/' %}nav-item--active{% endif %}" href="{% url 'workflow_list' %}">
+              <span class="nav-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M7 7h10M7 12h10M7 17h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </span>
+              <span>Сценарии</span>
+            </a>
+            <a class="nav-item {% if p|slice:':12' == '/executions/' and not p|slice:'-10:' == '/analytics/' %}nav-item--active{% endif %}" href="{% url 'executions_list' %}">
+              <span class="nav-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M8 7h8M8 12h8M8 17h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="2"/></svg>
+              </span>
+              <span>Журнал запусков</span>
+            </a>
+            <a class="nav-item {% if p|slice:'-10:' == '/analytics/' %}nav-item--active{% endif %}" href="{% url 'analytics' %}">
+              <span class="nav-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M4 19V5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 19h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M8 16v-5M12 16V8M16 16v-8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </span>
+              <span>Аналитика</span>
+            </a>
+            <a class="nav-item {% if p|slice:':9' == '/profile/' %}nav-item--active{% endif %}" href="{% url 'profile' %}">
+              <span class="nav-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M20 21a8 8 0 1 0-16 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" stroke="currentColor" stroke-width="2"/></svg>
+              </span>
+              <span>Профиль</span>
+            </a>
+            {% if user.is_staff %}
+              <a class="nav-item" href="/admin/">
+                <span class="nav-ico" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none"><path d="M12 2l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L4.8 7.3l5-.7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+                </span>
+                <span>Админка</span>
+              </a>
+            {% endif %}
+            {% endwith %}
           {% else %}
-            <a class="btn btn--ghost btn--sm" href="{% url 'account_login' %}">Войти</a>
-            <a class="btn btn--primary btn--sm" href="{% url 'account_signup' %}">Регистрация</a>
+            <a class="nav-item" href="{% url 'account_login' %}">
+              <span class="nav-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M10 17l5-5-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 12H3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M21 3v18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </span>
+              <span>Войти</span>
+            </a>
+            <a class="nav-item" href="{% url 'account_signup' %}">
+              <span class="nav-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </span>
+              <span>Регистрация</span>
+            </a>
           {% endif %}
         </nav>
-      </header>
+        {% if user.is_authenticated %}
+          <div class="sidebar-footer">
+            <div class="sidebar-user">{{ user.email }}</div>
+            <a class="btn btn--primary btn--sm" href="{% url 'account_logout' %}">Выйти</a>
+          </div>
+        {% endif %}
+      </aside>
 
       {% if messages %}
         <ul class="messages">
@@ -33,7 +81,7 @@
         </ul>
       {% endif %}
 
-      <main>
+      <main class="content">
         {% block content %}{% endblock %}
       </main>
     </div>

@@ -8,45 +8,56 @@
     Сценарий: <b>{{ execution.workflow.name }}</b> · Статус: <b>{{ execution.status }}</b>
   </p>
 
-  <div class="toolbar-row" style="margin-bottom: 16px;">
-    <span class="badge">Начало: {{ execution.start_time }}</span>
-    <span class="badge">Окончание: {{ execution.end_time|default:"-" }}</span>
+  <div class="cards-grid" style="margin-bottom: 16px;">
+    <div class="card">
+      <div class="card-title">Начало</div>
+      <div class="card-metric" style="font-size: 1.1rem;">{{ execution.start_time }}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Окончание</div>
+      <div class="card-metric" style="font-size: 1.1rem;">{{ execution.end_time|default:"-" }}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Статус</div>
+      <div class="card-metric" style="font-size: 1.1rem;">
+        <span class="status-badge status-badge--{{ execution.status }}">{{ execution.status }}</span>
+      </div>
+    </div>
   </div>
 
   {% if steps %}
-    <h2 style="font-size: 1.1rem; margin: 0 0 12px;">Результаты шагов</h2>
-    <table style="width:100%; border-collapse: collapse;">
-      <thead>
-        <tr>
-          <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e2e6ec;">Шаг</th>
-          <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e2e6ec;">Вход</th>
-          <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e2e6ec;">Выход</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for s in steps %}
+    <div class="card" style="padding: 0;">
+      <table class="table">
+        <thead>
           <tr>
-            <td style="padding:10px 12px; border-bottom:1px solid #f0f2f5; width: 180px;">
-              <div style="font-weight: 600;">{{ s.step_name }}</div>
-              {% if s.error_traceback %}
-                <div style="margin-top: 8px; color: #b91c1c; font-size: 12px;">
-                  Есть ошибка
-                </div>
-              {% endif %}
-            </td>
-            <td style="padding:10px 12px; border-bottom:1px solid #f0f2f5;">
-              <pre style="white-space: pre-wrap; word-break: break-word; margin:0; font-size:12px;">{{ s.input_pretty }}</pre>
-            </td>
-            <td style="padding:10px 12px; border-bottom:1px solid #f0f2f5;">
-              <pre style="white-space: pre-wrap; word-break: break-word; margin:0; font-size:12px;">{{ s.output_pretty }}</pre>
-              {% if s.error_traceback %}
-                <pre style="white-space: pre-wrap; word-break: break-word; margin:10px 0 0; font-size:12px; color:#b91c1c;">{{ s.error_traceback }}</pre>
-              {% endif %}
-            </td>
+            <th>Шаг</th>
+            <th>Вход</th>
+            <th>Выход</th>
           </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {% for s in steps %}
+            <tr>
+              <td style="width: 200px;">
+                <div style="font-weight: 800;">{{ s.step_name }}</div>
+                {% if s.error_traceback %}
+                  <div style="margin-top: 8px; color: #b91c1c; font-size: 12px;">Есть ошибка</div>
+                {% endif %}
+              </td>
+              <td>
+                <pre class="json-pre">{{ s.input_pretty }}</pre>
+              </td>
+              <td>
+                <pre class="json-pre">{{ s.output_pretty }}</pre>
+                {% if s.error_traceback %}
+                  <pre class="json-pre json-pre--error">{{ s.error_traceback }}</pre>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   {% else %}
     <p class="lead">Шагов выполнения пока нет.</p>
   {% endif %}

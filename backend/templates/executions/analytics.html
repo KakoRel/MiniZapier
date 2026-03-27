@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Аналитика{% endblock %}
+
+{% block content %}
+  <h1 class="page-title">Аналитика</h1>
+  <p class="lead">Статистика по запускам (графики обновляются по данным из БД).</p>
+
+  <div class="cards-grid" style="margin-bottom: 18px;">
+    <div class="card">
+      <div class="card-title">Успешно</div>
+      <div class="card-metric">{{ totals_map.success|default:0 }}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">С ошибкой</div>
+      <div class="card-metric">{{ totals_map.failed|default:0 }}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Выполняется</div>
+      <div class="card-metric">{{ totals_map.running|default:0 }}</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" style="margin-bottom: 10px;">Запуски по дням</div>
+    <canvas id="execChart" height="110"></canvas>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+    const labels = {{ labels|safe }};
+    const success = {{ success|safe }};
+    const failed = {{ failed|safe }};
+    const running = {{ running|safe }};
+
+    const ctx = document.getElementById('execChart');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Успешно', data: success, borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,0.15)', tension: 0.25, fill: true },
+          { label: 'С ошибкой', data: failed, borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.10)', tension: 0.25, fill: true },
+          { label: 'Выполняется', data: running, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.12)', tension: 0.25, fill: true },
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'top' }
+        },
+        scales: {
+          y: { beginAtZero: true, ticks: { precision: 0 } }
+        }
+      }
+    });
+  </script>
+{% endblock %}
+

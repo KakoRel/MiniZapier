@@ -1,18 +1,18 @@
 /* MiniZapier — базовые стили Django-шаблонов */
 
 :root {
-  --bg: #0f172a;
+  --bg: #f3f4f6;
   --surface: #ffffff;
-  --surface-muted: #f1f5f9;
-  --border: #dbe3ee;
-  --text: #0f172a;
-  --text-muted: #475569;
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
+  --surface-muted: #f7f7f8;
+  --border: #e6e7ea;
+  --text: #111827;
+  --text-muted: #6b7280;
+  --accent: #ff4a00;
+  --accent-hover: #e74300;
   --danger: #b91c1c;
   --success: #15803d;
   --radius: 14px;
-  --shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+  --shadow: 0 14px 36px rgba(17, 24, 39, 0.08);
   --font: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
@@ -32,10 +32,7 @@ body {
   min-height: 100vh;
   font-family: var(--font);
   color: var(--text);
-  background:
-    radial-gradient(circle at 0% 0%, #dbeafe 0, transparent 35%),
-    radial-gradient(circle at 100% 0%, #ede9fe 0, transparent 30%),
-    var(--surface-muted);
+  background: var(--bg);
   line-height: 1.5;
 }
 
@@ -48,55 +45,118 @@ a:hover {
   text-decoration: underline;
 }
 
-.app-shell {
-  max-width: 920px;
-  margin: 0 auto;
-  padding: 0 20px 48px;
+.layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
 }
 
-/* Шапка */
-.topbar {
+.sidebar {
+  background: #ffffff;
+  border-right: 1px solid var(--border);
+  padding: 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sidebar-brand a {
+  display: inline-block;
+  font-weight: 800;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nav-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 18px;
-  margin-bottom: 8px;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(219, 227, 238, 0.9);
+  gap: 10px;
+  padding: 10px 12px;
   border-radius: 12px;
-  backdrop-filter: blur(8px);
-}
-
-.brand {
-  font-weight: 700;
-  font-size: 1.125rem;
-  letter-spacing: -0.02em;
-}
-
-.brand a {
   color: var(--text);
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.nav-ico {
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+
+.nav-ico svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.nav-item:hover {
+  background: var(--surface-muted);
   text-decoration: none;
 }
 
-.brand a:hover {
+.nav-item--active {
+  background: #fff7f3;
+  border-color: rgba(255, 74, 0, 0.25);
+}
+
+.nav-item--active .nav-ico {
   color: var(--accent);
 }
 
-.nav-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+.nav-item:hover .nav-ico {
+  color: var(--accent);
 }
 
-.user-email {
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sidebar-user {
   font-size: 0.875rem;
   color: var(--text-muted);
-  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.content {
+  max-width: 1160px;
+  padding: 28px 28px 52px;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
 }
 
 /* Кнопки и «пилюли» ссылок */
@@ -147,11 +207,10 @@ a:hover {
 
 /* Основной контент */
 main {
-  background: var(--surface);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  border: 1px solid var(--border);
-  padding: 30px 34px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
 }
 
 @media (max-width: 640px) {
@@ -184,10 +243,108 @@ main {
   margin: 0 0 10px;
   padding: 4px 10px;
   border-radius: 999px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #fff7f3;
+  color: var(--accent);
   font-size: 0.8125rem;
   font-weight: 600;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+
+/* Auth containers look like cards */
+.auth-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+
+.auth-card .page-title {
+  margin-top: 0;
+}
+
+/* Tables on white cards */
+table {
+  width: 100%;
+}
+
+th, td {
+  vertical-align: top;
+}
+
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .cards-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.card-title {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.card-metric {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--text);
+  margin-top: 6px;
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.table thead th {
+  text-align: left;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 800;
+}
+
+.table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #f0f0f2;
+  font-size: 0.95rem;
+}
+
+.table tbody tr:hover td {
+  background: #fffaf7;
+}
+
+.json-pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  background: #fbfbfc;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.json-pre--error {
+  margin-top: 10px;
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #9f1239;
 }
 
 /* Сообщения Django */
@@ -265,6 +422,17 @@ main {
   border-radius: 8px;
   background: #fff;
   transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.form-field input[type="date"] {
+  width: 100%;
+  max-width: 100%;
+  padding: 10px 12px;
+  font-size: 1rem;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
 }
 
 .form-field input:focus {
@@ -377,6 +545,37 @@ main {
   white-space: nowrap;
 }
 
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  font-weight: 800;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.status-badge--success {
+  background: rgba(34, 197, 94, 0.10);
+  border-color: rgba(34, 197, 94, 0.25);
+  color: #15803d;
+}
+
+.status-badge--failed {
+  background: rgba(239, 68, 68, 0.10);
+  border-color: rgba(239, 68, 68, 0.22);
+  color: #b91c1c;
+}
+
+.status-badge--running {
+  background: rgba(255, 74, 0, 0.10);
+  border-color: rgba(255, 74, 0, 0.22);
+  color: var(--accent);
+}
+
 .badge--on {
   color: var(--success);
 }
@@ -402,3 +601,113 @@ main {
 .editor-mount {
   margin-top: 8px;
 }
+
+/* Workflows: cards + toggle */
+.wf-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .wf-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.wf-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+
+.wf-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.wf-title {
+  font-weight: 800;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.wf-title:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.wf-badge {
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  white-space: nowrap;
+}
+
+.wf-badge--on {
+  border-color: rgba(255, 74, 0, 0.25);
+  background: rgba(255, 74, 0, 0.10);
+  color: var(--accent);
+}
+
+.wf-badge--off {
+  color: var(--text-muted);
+}
+
+.wf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.toggle {
+  position: relative;
+  width: 54px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #e5e7eb;
+  cursor: pointer;
+  padding: 0;
+}
+
+.toggle .toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(17, 24, 39, 0.14);
+  transition: transform 0.16s ease, background 0.16s ease;
+}
+
+.toggle--on {
+  background: rgba(255, 74, 0, 0.22);
+  border-color: rgba(255, 74, 0, 0.35);
+}
+
+.toggle--on .toggle-knob {
+  transform: translateX(24px);
+}
+
+.toggle .toggle-text {
+  display: none;
+}
+
+form[action*="toggle-active"] .toggle {
+  background: #e5e7eb;
+}
+
+/* If workflow is active, render "On" text; we can't detect state in CSS reliably,
+   so we keep this as a neutral toggle UI. */

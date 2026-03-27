@@ -10,18 +10,38 @@
   </section>
 
   {% if user.is_authenticated %}
-    <p>Вы вошли в систему и можете запускать рабочие процессы.</p>
-    <div class="toolbar-row">
-      <a class="btn btn--primary" href="{% url 'workflow_list' %}">Мои сценарии</a>
-      <a class="btn btn--ghost" href="{% url 'workflow_create' %}">Новый сценарий</a>
-      <a class="btn btn--ghost" href="{% url 'executions_list' %}">Журнал запусков</a>
-      <a class="btn btn--ghost" href="/admin/">Админка</a>
+    <div class="cards-grid" style="margin-bottom: 16px;">
+      <div class="card">
+        <div class="card-title">Быстрый старт</div>
+        <div class="toolbar-row" style="margin: 12px 0 0;">
+          <a class="btn btn--primary" href="{% url 'workflow_list' %}">Сценарии</a>
+          <a class="btn btn--ghost" href="{% url 'workflow_create' %}">Новый</a>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Мониторинг</div>
+        <div class="toolbar-row" style="margin: 12px 0 0;">
+          <a class="btn btn--ghost" href="{% url 'executions_list' %}">Журнал</a>
+          <a class="btn btn--ghost" href="{% url 'analytics' %}">Аналитика</a>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Аккаунт</div>
+        <div class="toolbar-row" style="margin: 12px 0 0;">
+          <a class="btn btn--ghost" href="{% url 'profile' %}">Профиль</a>
+          {% if user.is_staff %}
+            <a class="btn btn--ghost" href="/admin/">Админка</a>
+          {% endif %}
+        </div>
+      </div>
     </div>
   {% else %}
-    <p class="lead" style="margin-bottom: 16px;">Войдите или зарегистрируйтесь, чтобы создавать и запускать сценарии.</p>
-    <div class="toolbar-row">
-      <a class="btn btn--primary" href="{% url 'account_login' %}">Войти</a>
-      <a class="btn btn--ghost" href="{% url 'account_signup' %}">Регистрация</a>
+    <div class="card" style="max-width: 640px;">
+      <p class="lead" style="margin-bottom: 14px;">Войдите или зарегистрируйтесь, чтобы создавать и запускать сценарии.</p>
+      <div class="toolbar-row" style="margin-bottom: 0;">
+        <a class="btn btn--primary" href="{% url 'account_login' %}">Войти</a>
+        <a class="btn btn--ghost" href="{% url 'account_signup' %}">Регистрация</a>
+      </div>
     </div>
   {% endif %}
 {% endblock %}

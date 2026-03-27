@@ -28,3 +28,22 @@ class UserProfile(models.Model):
 
     def __str__(self) -> str:
         return f"Profile for {self.user_id}"
+
+
+class UserVariable(models.Model):
+    profile = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name="variables")
+    key = models.CharField(max_length=64)
+    value = models.TextField(blank=True, default="")
+    is_secret = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("profile", "key")]
+        indexes = [
+            models.Index(fields=["profile", "key"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.key} (profile {self.profile_id})"

@@ -165,6 +165,43 @@ def _to_json_serializable(value: object) -> object:
     # This converts datetime/Decimal/etc. via default=str.
     return json.loads(_safe_json_dumps(value))
 
+def _load_user_variables(workflow: Workflow) -> dict[str, str]:
+    prof = getattr(workflow.user, "profile", None)
+    result: dict[str, str] = {}
+    if not prof:
+        return result
+    # Backward-compatible defaults
+    if getattr(prof, "telegram_bot_token", ""):
+        result["TELEGRAM_BOT_TOKEN"] = str(getattr(prof, "telegram_bot_token") or "")
+    if getattr(prof, "telegram_default_chat_id", ""):
+        result["TELEGRAM_DEFAULT_CHAT_ID"] = str(getattr(prof, "telegram_default_chat_id") or "")
+    if getattr(prof, "postgres_dsn", ""):
+        result["POSTGRES_DSN"] = str(getattr(prof, "postgres_dsn") or "")
+    # Custom variables
+    try:
+        for v in prof.variables.all():
+            if v.key:
+                result[str(v.key).upper()] = str(v.value or "")
+    except Exception:  # noqa: BLE001
+        pass
+    return result
+
+
+_VAR_PATTERN = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}")
+
+
+def _interpolate_vars(value: object, variables: dict[str, str]) -> object:
+    if isinstance(value, str):
+        def repl(m):
+            key = m.group(1).upper()
+            return variables.get(key, m.group(0))
+        return _VAR_PATTERN.sub(repl, value)
+    if isinstance(value, dict):
+        return {k: _interpolate_vars(v, variables) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_interpolate_vars(v, variables) for v in value]
+    return value
+
 
 def _run_sql_action(dsn: str, query: str, max_rows: int = 100, timeout_sec: int = 20) -> dict:
     if not dsn:
@@ -383,6 +420,7 @@ def _imap_fetch_unseen(email_cfg: dict) -> tuple[list[tuple[str, dict]], str]:
 def run_workflow_execution(self, workflow_id: int, trigger_payload: dict | None = None) -> int:
     workflow = Workflow.objects.get(pk=workflow_id, is_active=True)
     trigger = getattr(workflow, "trigger", None)
+    variables = _load_user_variables(workflow)
 
     flow_data = workflow.flow_data or {}
     execution_order, node_map, outgoing, incoming = _ordered_execution_nodes(flow_data)
@@ -404,7 +442,7 @@ def run_workflow_execution(self, workflow_id: int, trigger_payload: dict | None 
                 data = node.get("data") or {}
                 label = data.get("label") or f"step-{idx}"
                 kind = (data.get("actionType") or "").strip().lower()
-                cfg = data.get("config") or {}
+                cfg = _interpolate_vars((data.get("config") or {}), variables) or {}
                 predecessors = incoming.get(node_id, [])
                 pred_payloads: list[object] = []
                 for pred_id in predecessors:
@@ -426,7 +464,11 @@ def run_workflow_execution(self, workflow_id: int, trigger_payload: dict | None 
                             step_output = _run_http_action(cfg, step_input)
                         elif kind == "telegram":
                             profile = getattr(workflow.user, "profile", None)
-                            token = (getattr(profile, "telegram_bot_token", "") or "").strip()
+                            token = (
+                                str(cfg.get("bot_token") or "")
+                                or (getattr(profile, "telegram_bot_token", "") or "").strip()
+                            )
+                            token = str(token or "").strip()
                             chat_id = (cfg.get("chat_id") or getattr(profile, "telegram_default_chat_id", "") or "").strip()
                             text_tmpl = str(cfg.get("text") or "")
                             text = text_tmpl.replace("{payload}", _safe_json_dumps(step_input))
@@ -452,7 +494,11 @@ def run_workflow_execution(self, workflow_id: int, trigger_payload: dict | None 
                             step_output = {"sent": sent, "to": to_list}
                         elif kind == "sql":
                             profile = getattr(workflow.user, "profile", None)
-                            dsn = (cfg.get("dsn_override") or getattr(profile, "postgres_dsn", "") or "").strip()
+                            dsn = (
+                                str(cfg.get("dsn_override") or "")
+                                or (getattr(profile, "postgres_dsn", "") or "").strip()
+                            )
+                            dsn = str(dsn or "").strip()
                             query_tmpl = str(cfg.get("query") or "")
                             query = query_tmpl.replace("{payload}", _safe_json_dumps(step_input))
                             max_rows = int(cfg.get("max_rows") or 100)

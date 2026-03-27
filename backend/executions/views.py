@@ -1,20 +1,17 @@
 from __future__ import annotations
 
 import json
-from datetime import timedelta
-
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
+from django.db.models.functions import TruncDate
 
 from .models import Execution
 
 
 @login_required
 def executions_list(request):
-    days = 30
-    since = timezone.now() - timedelta(days=days)
     workflows_qs = Execution.objects.filter(workflow__user=request.user).values("workflow_id", "workflow__name").distinct()
     workflows = sorted(
         [{"id": row["workflow_id"], "name": row["workflow__name"]} for row in workflows_qs],
@@ -27,7 +24,7 @@ def executions_list(request):
     date_to = (request.GET.get("date_to") or "").strip()
 
     qs = (
-        Execution.objects.filter(workflow__user=request.user, start_time__gte=since)
+        Execution.objects.filter(workflow__user=request.user)
         .select_related("workflow")
         .prefetch_related("steps")
         .order_by("-start_time")
@@ -49,7 +46,6 @@ def executions_list(request):
         "executions/executions_list.html",
         {
             "executions": qs,
-            "days": days,
             "stats_map": stats_map,
             "workflows": workflows,
             "filter_workflow": workflow_id,
@@ -59,6 +55,49 @@ def executions_list(request):
         },
     )
 
+
+@login_required
+def analytics(request):
+    # Last 30 days for charts, regardless of filters.
+    since = timezone.now().date().replace(day=1)
+    qs = Execution.objects.filter(workflow__user=request.user)
+
+    # Aggregate by date + status
+    daily = (
+        qs.annotate(d=TruncDate("start_time"))
+        .values("d", "status")
+        .annotate(count=Count("id"))
+        .order_by("d")
+    )
+
+    # Build series
+    by_date: dict[str, dict[str, int]] = {}
+    for row in daily:
+        if not row.get("d"):
+            continue
+        key = row["d"].isoformat()
+        by_date.setdefault(key, {"success": 0, "failed": 0, "running": 0})
+        by_date[key][row["status"]] = int(row["count"])
+
+    labels = sorted(by_date.keys())
+    success = [by_date[d]["success"] for d in labels]
+    failed = [by_date[d]["failed"] for d in labels]
+    running = [by_date[d]["running"] for d in labels]
+
+    totals = qs.values("status").annotate(count=Count("id"))
+    totals_map = {row["status"]: row["count"] for row in totals}
+
+    return render(
+        request,
+        "executions/analytics.html",
+        {
+            "labels": labels,
+            "success": success,
+            "failed": failed,
+            "running": running,
+            "totals_map": totals_map,
+        },
+    )
 
 @login_required
 def execution_detail(request, execution_id: int):

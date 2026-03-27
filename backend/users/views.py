@@ -7,7 +7,7 @@ from django.views.decorators.http import require_http_methods
 from allauth.account.models import EmailAddress
 from allauth.account.internal.flows.email_verification import send_verification_email_for_user
 
-from .models import UserProfile
+from .models import UserProfile, UserVariable
 
 
 @login_required
@@ -30,6 +30,30 @@ def profile(request):
         prof.telegram_default_chat_id = (request.POST.get("telegram_default_chat_id") or "").strip()
         prof.postgres_dsn = (request.POST.get("postgres_dsn") or "").strip()
         prof.save(update_fields=["telegram_bot_token", "telegram_default_chat_id", "postgres_dsn", "updated_at"])
+
+        # Variables CRUD (simple replace strategy).
+        keys = request.POST.getlist("var_key")
+        values = request.POST.getlist("var_value")
+        secrets = request.POST.getlist("var_secret")
+        pairs: list[tuple[str, str, bool]] = []
+        for k, v, s in zip(keys, values, secrets, strict=False):
+            k = (k or "").strip().upper()
+            if not k:
+                continue
+            is_secret = str(s or "").strip().lower() in {"1", "true", "on", "yes"}
+            pairs.append((k[:64], (v or ""), is_secret))
+
+        keep_keys = {k for k, _, _ in pairs}
+        UserVariable.objects.filter(profile=prof).exclude(key__in=keep_keys).delete()
+        for k, v, is_secret in pairs:
+            existing = UserVariable.objects.filter(profile=prof, key=k).first()
+            if existing and existing.is_secret and (v or "").strip() == "":
+                # Do not overwrite secret with empty input (masked in UI).
+                existing.is_secret = is_secret
+                existing.save(update_fields=["is_secret", "updated_at"])
+                continue
+            UserVariable.objects.update_or_create(profile=prof, key=k, defaults={"value": v, "is_secret": is_secret})
+
         messages.success(request, "Профиль сохранён")
         return redirect("profile")
 
@@ -39,6 +63,7 @@ def profile(request):
         {
             "profile": prof,
             "email_address": email_address,
+            "variables": list(UserVariable.objects.filter(profile=prof).order_by("key")),
         },
     )
 
