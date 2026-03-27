@@ -159,7 +159,3 @@ docker compose -f docker-compose.prod.yml exec web python manage.py migrate
 - Не коммить реальные `DJANGO_SECRET_KEY`, пароли к БД, пароли SMTP и любые API-ключи.
 - Используй `.env.example` только с заглушками.
 - Перед коммитом проверь `git status`: `.env` **не должен** быть в списке. Если секреты всё-таки попали в историю — ключи нужно перевыпустить и очистить историю (`git filter-repo` или BFG).
-
-## Лицензия
-
-Добавь лицензию, если это нужно.
